@@ -469,25 +469,37 @@ export default function Home() {
   };
 
   const handleCreateCustomField = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newFieldName.trim()) return;
+      e.preventDefault();
+      if (!newFieldName.trim()) return;
 
+      try {
+        const payload = {
+          name: newFieldName,
+          field_type: newFieldType,
+          options: newFieldType === 'select' ? newFieldOptions.split(',').map((s) => s.trim()) : [],
+        };
+
+        await customFieldsService.create(payload);
+
+        // Si tiene éxito, limpiamos el formulario y refrescamos la lista
+        setNewFieldName('');
+        setNewFieldOptions('');
+        setShowConfigModal(false);
+        fetchCustomFields();
+      } catch (e) {
+        console.error('Error al crear campo personalizado:', e);
+      }
+    };
+
+  const handleDeleteCustomField = async (fieldId: string) => {
     try {
-      const payload = {
-        name: newFieldName,
-        field_type: newFieldType,
-        options: newFieldType === 'select' ? newFieldOptions.split(',').map((s) => s.trim()) : [],
-      };
+      // 1. Llamada a la API de FastAPI a través del servicio
+      await customFieldsService.delete(fieldId);
 
-      await customFieldsService.create(payload);
-
-      // Si tiene éxito, limpiamos el formulario y refrescamos la lista
-      setNewFieldName('');
-      setNewFieldOptions('');
-      setShowConfigModal(false);
+      // 2. Volver a cargar la lista de campos en el estado global
       fetchCustomFields();
-    } catch (e) {
-      console.error('Error al crear campo personalizado:', e);
+    } catch (error) {
+      console.error('Error al eliminar campo personalizado:', error);
     }
   };
 
@@ -702,6 +714,8 @@ export default function Home() {
         setNewFieldType={setNewFieldType}
         newFieldOptions={newFieldOptions}
         setNewFieldOptions={setNewFieldOptions}
+        customFields={customFields}
+        onDeleteField={handleDeleteCustomField}
         onClose={() => setShowConfigModal(false)}
         onSubmit={handleCreateCustomField}
       />

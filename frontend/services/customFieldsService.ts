@@ -27,5 +27,11 @@ export const customFieldsService = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
-  }
+  },
+
+  delete: async (fieldId: string): Promise<void> => {
+    return fetchApi<void>(`/custom-fields/${fieldId}`, {
+      method: 'DELETE',
+    });
+  },
 };

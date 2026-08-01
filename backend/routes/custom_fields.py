@@ -28,3 +28,21 @@ def create_custom_field(payload: CustomFieldCreate, db: Session = Depends(get_db
 @router.get("", response_model=list[CustomFieldResponse])
 def list_custom_fields(db: Session = Depends(get_db)):
     return db.query(models.CustomFieldDefinition).all()
+    
+@router.delete("/{field_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_custom_field(field_id: str, db: Session = Depends(get_db)):
+    # 1. Buscar el campo en la BD
+    field = db.query(models.CustomFieldDefinition).filter(
+        models.CustomFieldDefinition.id == field_id
+    ).first()
+    
+    if not field:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Campo personalizado no encontrado"
+        )
+
+    # 2. Eliminar y guardar cambios
+    db.delete(field)
+    db.commit()
+    return None
