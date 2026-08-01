@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 
 export interface Collection {
@@ -13,6 +15,7 @@ interface SidebarProps {
   collections: Collection[];
   onOpenNewCollectionModal: () => void;
   onOpenConfigModal: () => void;
+  onDeleteCollection?: (id: string) => void; // 👈 Nueva función opcional para borrar
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -22,6 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collections,
   onOpenNewCollectionModal,
   onOpenConfigModal,
+  onDeleteCollection,
 }) => {
   return (
     <aside className="w-60 bg-[#0d1322] border-r border-slate-800/80 p-5 flex flex-col justify-between shrink-0">
@@ -65,20 +69,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <div className="space-y-1">
               {collections.map((col) => (
-                <button
+                <div
                   key={col.id}
                   onClick={() => setSelectedCollectionId(col.id)}
-                  className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-medium flex justify-between items-center transition-all ${
+                  className={`group w-full px-3 py-1.5 rounded-lg text-xs font-medium flex justify-between items-center cursor-pointer transition-all ${
                     selectedCollectionId === col.id
                       ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
                       : 'text-slate-400 hover:bg-slate-800/40'
                   }`}
                 >
-                  <span className="truncate">📁 {col.name}</span>
-                  <span className="text-[10px] bg-slate-800/60 text-slate-500 px-2 py-0.5 rounded-full">
-                    {col.document_count}
-                  </span>
-                </button>
+                  <span className="truncate pr-1">📁 {col.name}</span>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Botón Borrar (Visible únicamente al hacer HOVER sobre la fila) */}
+                    {onDeleteCollection && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Evita seleccionar la colección al presionar eliminar
+                          onDeleteCollection(col.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 p-0.5 transition-all text-xs"
+                        title="Eliminar colección"
+                      >
+                        🗑️
+                      </button>
+                    )}
+
+                    <span className="text-[10px] bg-slate-800/60 text-slate-500 px-2 py-0.5 rounded-full">
+                      {col.document_count ?? 0}
+                    </span>
+                  </div>
+                </div>
               ))}
             </div>
           </div>

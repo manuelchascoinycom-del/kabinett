@@ -43,4 +43,10 @@ export const collectionService = {
       body: JSON.stringify({ document_id: documentId }),
     });
   },
+
+  delete: async (collectionId: string): Promise<void> => {
+    return fetchApi<void>(`/collections/${collectionId}`, {
+      method: 'DELETE',
+    });
+  },
 };

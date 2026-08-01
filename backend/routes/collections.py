@@ -103,3 +103,20 @@ def get_documents_by_collection(collection_id: uuid.UUID, db: Session = Depends(
         }
         for doc in collection.documents
     ]
+    
+@router.delete("/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_collection(collection_id: str, db: Session = Depends(get_db)):
+    collection = db.query(models.Collection).filter(
+        models.Collection.id == collection_id
+    ).first()
+    
+    if not collection:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Colección no encontrada"
+        )
+
+    # Elimina la colección de la base de datos
+    db.delete(collection)
+    db.commit()
+    return None

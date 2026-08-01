@@ -14,6 +14,7 @@ import { CustomFieldsModal } from '@/components/modals/CustomFieldsModal';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { SearchBar } from '@/components/documents/SearchBar';
 import { Dropzone } from '@/components/upload/Dropzone';
+import { ConfirmModal } from '@/components/modals/ConfirmModal';
 
 import { collectionService } from '@/services/collectionService';
 import { documentService } from '@/services/documentService';
@@ -588,6 +589,32 @@ export default function Home() {
     }
   };
 
+  // 1. Estado para controlar el modal de borrado
+  const [collectionToDelete, setCollectionToDelete] = useState<string | null>(null);
+
+  // 2. Al pulsar el botón de la papelera en la Sidebar
+  const handleDeleteCollectionClick = (collectionId: string) => {
+    setCollectionToDelete(collectionId); // Abre el modal
+  };
+
+  // 3. Acción real de borrado (se ejecuta al pulsar "Eliminar" en el modal)
+  const handleConfirmDeleteCollection = async () => {
+    if (!collectionToDelete) return;
+
+    try {
+      await collectionService.delete(collectionToDelete);
+      fetchCollections();
+
+      if (selectedCollectionId === collectionToDelete) {
+        setSelectedCollectionId(null);
+      }
+    } catch (error) {
+      console.error('Error al eliminar colección:', error);
+    } finally {
+      setCollectionToDelete(null);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-[#090d16] text-slate-100 font-sans">
       {/* Sidebar 1: Navegación Principal y Colecciones */}
@@ -598,6 +625,7 @@ export default function Home() {
         collections={collections}
         onOpenNewCollectionModal={() => setShowNewCollectionModal(true)}
         onOpenConfigModal={() => setShowConfigModal(true)}
+        onDeleteCollection={handleDeleteCollectionClick}
       />
 
       {/* Sidebar 2: Panel Lateral de Filtros Facetados */}
@@ -718,6 +746,17 @@ export default function Home() {
         onDeleteField={handleDeleteCustomField}
         onClose={() => setShowConfigModal(false)}
         onSubmit={handleCreateCustomField}
+      />
+
+      {/* Modal de confirmación de eliminación */}
+      <ConfirmModal
+        isOpen={!!collectionToDelete}
+        title="Eliminar Colección"
+        message="¿Estás seguro de que quieres eliminar esta colección? Las partituras guardadas en ella no se borrarán."
+        confirmText="Eliminar"
+        isDanger={true}
+        onConfirm={handleConfirmDeleteCollection}
+        onClose={() => setCollectionToDelete(null)}
       />
     </div>
   );
