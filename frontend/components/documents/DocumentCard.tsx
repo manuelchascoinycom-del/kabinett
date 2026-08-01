@@ -32,6 +32,11 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const title = item.confirmedMetadata?.title || item.suggestedMetadata?.title || item.file.name;
   const composer = item.confirmedMetadata?.composer || item.suggestedMetadata?.composer;
   const tags = item.confirmedMetadata?.tags || item.suggestedMetadata?.tags || [];
+  
+  // Extraemos las claves de los campos personalizados que tengan un valor no vacío
+  const customEntries = item.customMetadata 
+    ? Object.entries(item.customMetadata).filter(([_, val]) => val !== null && val !== undefined && val !== '')
+    : [];
 
   return (
     <div className="bg-[#0d1322] border border-slate-800/80 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-slate-700 transition-all shadow-md">
@@ -48,6 +53,21 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
         {composer && <p className="text-xs text-slate-400 font-medium">Compositor: {composer}</p>}
 
+        {/* 🟣 Campos Personalizados */}
+        {customEntries.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            {customEntries.map(([key, value]) => (
+              <span
+                key={key}
+                className="text-[10px] bg-purple-950/40 text-purple-300 px-2 py-0.5 rounded border border-purple-500/25 font-medium"
+              >
+                <strong className="font-semibold capitalize">{key}:</strong> {String(value)}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* 🏷️ Etiquetas (#tags) */}
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">
             {tags.map((tag, idx) => (
@@ -62,14 +82,14 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       {/* Botones de Acción */}
       <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
         {selectedCollectionId && onRemoveFromCollection && (
-        <button
+          <button
             type="button"
             onClick={() => onRemoveFromCollection(item.id, selectedCollectionId)}
             className="px-2.5 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-500/30 text-xs rounded-lg transition-colors flex items-center gap-1 font-semibold"
             title="Quitar de esta colección"
-        >
+          >
             ✕ Desasignar
-        </button>
+          </button>
         )}
         {item.backendId && (
           <button
