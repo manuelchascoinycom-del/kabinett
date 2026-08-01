@@ -29,7 +29,7 @@ interface UploadItem {
 interface UploadQueueProps {
   items: UploadItem[];
   globalTags?: string[];
-  customFields?: CustomField[]; // 👈 Pasa los campos creados si los tienes
+  customFields?: CustomField[];
   onStartUpload: () => void;
   onUploadSingleItem: (item: UploadItem) => void;
   onRemoveItem: (id: string) => void;
@@ -56,11 +56,7 @@ const UploadQueueItem: React.FC<{
 }> = ({ item, globalTags = [], customFields = [], onUploadSingleItem, onRemoveItem, onConfirmItem }) => {
   const [title, setTitle] = useState(item.suggestedMetadata?.title || item.file.name);
   const [composer, setComposer] = useState(item.suggestedMetadata?.composer || '');
-  
-  // 🏷️ 1. Ahora 'tags' es un Array en vez de string
   const [tags, setTags] = useState<string[]>(item.suggestedMetadata?.tags || []);
-  
-  // ⚙️ 2. Estado para los campos personalizados
   const [customMetadata, setCustomMetadata] = useState<Record<string, any>>(
     item.customMetadata || {}
   );
@@ -84,10 +80,11 @@ const UploadQueueItem: React.FC<{
   };
 
   const handleConfirm = () => {
-    if (!item.backendId) return;
+    if (!item.backendId) {
+      console.error("No se puede confirmar: el item no tiene backendId asignado aún.");
+      return;
+    }
     onConfirmItem(item.backendId, { title, composer, tags }, customMetadata, item.id);
-
-    onRemoveItem(item.id);
   };
 
   return (
@@ -112,11 +109,6 @@ const UploadQueueItem: React.FC<{
               <span className="text-[10px] text-emerald-400 font-mono">{item.progress}%</span>
             </div>
           )}
-          {item.status === 'error' && (
-            <span className="text-[11px] text-red-400 font-medium">
-              {item.errorMessage || 'Error'}
-            </span>
-          )}
 
           {item.status === 'pending' && (
             <button
@@ -137,7 +129,29 @@ const UploadQueueItem: React.FC<{
         </div>
       </div>
 
-      {/* REVISIÓN DE METADATOS SUGERIDOS Y PERSONALIZADOS */}
+      {/* 🚨 BLOQUE DE ERROR SI FALLA EL PROCESAMIENTO */}
+      {item.status === 'error' && (
+        <div className="pt-2 border-t border-red-900/50">
+          <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-lg flex items-start justify-between gap-2">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-red-400 flex items-center gap-1.5">
+                ⚠️ Error al procesar la partitura
+              </span>
+              <p className="text-[11px] text-red-300/80 leading-relaxed">
+                {item.errorMessage || 'No se pudo leer el archivo o el PDF no contiene texto procesable.'}
+              </p>
+            </div>
+            <button
+              onClick={() => onRemoveItem(item.id)}
+              className="px-2.5 py-1 bg-red-900/50 hover:bg-red-800 text-red-200 text-[10px] font-medium rounded transition-colors whitespace-nowrap"
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ✨ REVISIÓN DE METADATOS SOLO SI FUE EXITOSO */}
       {item.status === 'success' && item.backendId && (
         <div className="pt-2 border-t border-slate-800/80 space-y-2.5 bg-slate-900/50 p-3 rounded-lg border border-emerald-500/20">
           <div className="flex items-center justify-between">
@@ -170,13 +184,11 @@ const UploadQueueItem: React.FC<{
             </div>
           </div>
 
-          {/* 🏷️ COMPONENTE DE CHIPS PARA TAGS */}
           <div>
             <label className="text-[10px] text-slate-400 font-medium block mb-1">Etiquetas (#Tags)</label>
             <TagInput tags={tags} allTags={globalTags} onChange={setTags} placeholder="Añadir etiqueta y presionar Enter..." />
           </div>
 
-          {/* ⚙️ CAMPOS PERSONALIZADOS DINÁMICOS (Dificultad, Editorial, etc.) */}
           {customFields.length > 0 && (
             <div className="pt-2 border-t border-slate-800/50">
               <span className="text-[10px] font-bold text-slate-400 block mb-2">Campos personalizados</span>

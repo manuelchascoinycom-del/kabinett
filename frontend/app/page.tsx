@@ -287,15 +287,35 @@ export default function Home() {
 
           const statusData = await documentService.getStatus(data.id);
           
-          // Si ya no está procesando (ej. PENDING_REVIEW o READY)
-          if (statusData.status === 'pending_review') {
-            data = statusData; // Actualizamos 'data' con los metadatos completos
+          // Si el estado ya cambió (sea éxito o error)
+          const currentStatus = (statusData.status || '').toUpperCase();
+          if (currentStatus !== 'PROCESSING') {
+            data = statusData; // Actualizamos 'data' con el estado final
             isCompleted = true;
           }
         }
       }
 
-      // 3. Mapeamos la respuesta final (que ya incluye metadata_suggested)
+      // 3. Comprobamos si el estado final del Backend fue ERROR
+      const finalBackendStatus = (data.status || '').toUpperCase();
+
+      if (finalBackendStatus === 'ERROR') {
+        setUploadQueueItems((prev) =>
+          prev.map((item) =>
+            item.id === fileItem.id
+              ? {
+                  ...item,
+                  status: 'error',
+                  errorMessage: data.error_message || 'Error en el procesamiento del archivo',
+                  backendId: data.id,
+                }
+              : item
+          )
+        );
+        return; // Detenemos la ejecución aquí
+      }
+
+      // 4. Si fue exitoso, mapeamos la respuesta final
       const uploadedItem: UploadItem = {
         ...fileItem,
         progress: 100,
@@ -353,9 +373,23 @@ export default function Home() {
     }
   };
 
-  const removeItemFromQueue = (id: string) => {
-    setUploadQueueItems((prev) => prev.filter((item) => item.id !== id));
-  };
+  const removeItemFromQueue = async (id: string) => {
+    // 1. Buscamos el elemento en el estado de la cola
+    const itemToRemove = uploadQueueItems.find((item) => item.id === id);
+
+    // 2. Si ya se subió al backend (tiene backendId), llamamos al servicio para borrarlo de la BD y del disco
+    if (itemToRemove?.backendId) {
+      try {
+        await documentService.delete(itemToRemove.backendId);
+      } catch (error) {
+        console.error("Error al eliminar el documento del servidor:", error);
+        // Opcional: podrías mostrar una notificación toast o alerta aquí si falla la red
+      }
+  }
+
+  // 3. Lo quitamos del estado visual de la cola
+  setUploadQueueItems((prev) => prev.filter((item) => item.id !== id));
+};
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -388,21 +422,49 @@ export default function Home() {
     }
   };
 
+  // Borra de la BD + Quita de la pantalla
+  const handleDiscardItem = async (queueId: string) => {
+    const itemToRemove = uploadQueueItems.find((item) => item.id === queueId);
+    
+    // Si llegó a subir al backend, lo borramos de la BD y disco
+    if (itemToRemove?.backendId) {
+      try {
+        await documentService.deleteDocument(itemToRemove.backendId);
+      } catch (e) {
+        console.error("Error al borrar del servidor:", e);
+      }
+    }
+
+    // Lo borramos de la lista local en pantalla
+    setUploadQueueItems((prev) => prev.filter((item) => item.id !== queueId));
+  };
+
+  // Guarda metadatos en la BD + Solo quita de la pantalla
   const handleConfirmQueueItem = async (
     backendId: string,
-    metadata: { title: string; composer: string; tags: string[] },
+    metadata: Metadata,
+    customMetadata: Record<string, any>,
     queueId: string
   ) => {
     try {
-      // Usamos el servicio centralizado pasando el backendId y el objeto metadata
-      await documentService.confirmMetadata(backendId, metadata);
+      const payload = {
+        title: metadata.title,
+        composer: metadata.composer,
+        tags: metadata.tags,
+        custom_metadata: customMetadata,
+      };
 
-      // Si no hay error, ejecutamos las acciones de éxito
+      // 1. Guardamos la confirmación en el Backend
+      await documentService.confirmMetadata(backendId, payload);
+
+      // 2. SOLO quitamos la tarjeta de la cola local (¡SIN HACER DELETE HTTP!)
       setUploadQueueItems((prev) => prev.filter((item) => item.id !== queueId));
-      await fetchDocuments();
-      await applyFilters();
-    } catch (e) {
-      console.error('Error al confirmar metadatos:', e);
+      
+      // 3. Refrescamos la lista de la biblioteca
+      fetchDocuments(); 
+      applyFilters();
+    } catch (error) {
+      console.error("Error al confirmar metadatos:", error);
     }
   };
 
@@ -572,7 +634,7 @@ export default function Home() {
             customFields={customFields}
             onStartUpload={handleStartUpload}
             onUploadSingleItem={(item) => uploadFileToServer(item)}
-            onRemoveItem={removeItemFromQueue}
+            onRemoveItem={handleDiscardItem}
             onConfirmItem={handleConfirmQueueItem}
           />
 
