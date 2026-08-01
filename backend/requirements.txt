@@ -1,0 +1,63 @@
+# FastAPI and Web Framework
+fastapi==0.104.1
+uvicorn==0.24.0
+python-dotenv==1.0.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Database
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.13.0
+
+# Redis and Caching
+redis==5.0.1
+aioredis==2.0.1
+
+# Celery and Task Queue
+celery==5.3.4
+django-celery-beat==2.5.0
+
+# Document Processing
+PyMuPDF>=1.24.0
+pymupdf4llm==0.2.4
+pillow==10.1.0
+
+# API Documentation
+apispec==6.3.1
+
+# Security
+python-jose==3.3.0
+passlib==1.7.4
+bcrypt==4.1.2
+python-multipart==0.0.6
+
+# Logging
+python-json-logger==2.0.7
+
+# Type Hints
+typing-extensions==4.8.0
+
+# HTTP Client
+httpx==0.25.2
+aiohttp==3.9.1
+
+# Data Validation
+email-validator==2.1.0
+
+# Async Support
+anyio>=3.7.1,<4.0.0
+
+# Testing (Optional)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+
+# Code Quality
+black==23.12.0
+flake8==6.1.0
+isort==5.13.2
+mypy==1.7.1
+
+# Development
+ipython==8.18.1

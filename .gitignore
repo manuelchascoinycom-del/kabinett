@@ -1,0 +1,16 @@
+# Entornos virtuales y Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node & Next.js
+node_modules/
+.next/
+out/
+build/
+
+# Variables de entorno y SO
+.env
+.env.local
+.DS_Store
+Thumbs.db

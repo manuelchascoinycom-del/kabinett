@@ -1,0 +1,114 @@
+'use client';
+
+import React from 'react';
+
+interface DocumentCardProps {
+  item: {
+    id: string;
+    backendId?: string;
+    file: { name: string; size: number };
+    suggestedMetadata?: { title: string; composer: string; tags: string[] };
+    confirmedMetadata?: { title: string; composer: string; tags: string[] };
+    customMetadata?: Record<string, any>;
+    isConfirmed?: boolean;
+  };
+  collections: Array<{ id: string; name: string }>;
+  selectedCollectionId?: string | null;
+  onRemoveFromCollection?: (docId: string, collectionId: string) => void;
+  onEdit: (item: any) => void;
+  onViewPdf: (backendId: string, title: string) => void;
+  onAssignCollection: (backendId: string, collectionId: string) => void;
+}
+
+export const DocumentCard: React.FC<DocumentCardProps> = ({
+  item,
+  collections,
+  selectedCollectionId,
+  onRemoveFromCollection,
+  onEdit,
+  onViewPdf,
+  onAssignCollection,
+}) => {
+  const title = item.confirmedMetadata?.title || item.suggestedMetadata?.title || item.file.name;
+  const composer = item.confirmedMetadata?.composer || item.suggestedMetadata?.composer;
+  const tags = item.confirmedMetadata?.tags || item.suggestedMetadata?.tags || [];
+
+  return (
+    <div className="bg-[#0d1322] border border-slate-800/80 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-slate-700 transition-all shadow-md">
+      <div className="space-y-1.5 flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">📄</span>
+          <h4 className="text-xs font-bold text-slate-100 truncate">{title}</h4>
+          {item.isConfirmed && (
+            <span className="text-[10px] bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30">
+              Confirmado
+            </span>
+          )}
+        </div>
+
+        {composer && <p className="text-xs text-slate-400 font-medium">Compositor: {composer}</p>}
+
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {tags.map((tag, idx) => (
+              <span key={idx} className="text-[10px] bg-slate-900 text-slate-300 px-2 py-0.5 rounded-full border border-slate-800">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Botones de Acción */}
+      <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+        {selectedCollectionId && onRemoveFromCollection && (
+        <button
+            type="button"
+            onClick={() => onRemoveFromCollection(item.id, selectedCollectionId)}
+            className="px-2.5 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-500/30 text-xs rounded-lg transition-colors flex items-center gap-1 font-semibold"
+            title="Quitar de esta colección"
+        >
+            ✕ Desasignar
+        </button>
+        )}
+        {item.backendId && (
+          <button
+            onClick={() => onViewPdf(item.backendId!, title)}
+            className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5"
+            title="Ver partitura en el visor integrado"
+          >
+            👁️ Ver PDF
+          </button>
+        )}
+
+        <button
+          onClick={() => onEdit(item)}
+          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition-colors"
+        >
+          Editar
+        </button>
+
+        {/* Selector rápido de colección */}
+        {collections.length > 0 && item.backendId && (
+          <select
+            onChange={(e) => {
+              if (e.target.value) {
+                onAssignCollection(item.backendId!, e.target.value);
+                e.target.value = '';
+              }
+            }}
+            defaultValue=""
+            className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg px-2 py-1.5 outline-none hover:border-slate-700"
+          >
+            <option value="" disabled>📁 Mover a...</option>
+            {collections.map((col) => (
+              <option key={col.id} value={col.id}>
+                {col.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    </div>
+  );
+};

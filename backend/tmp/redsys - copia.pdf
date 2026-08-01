@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Lanzador Oficial Redsys</title>
+</head>
+<body style="font-family: Arial, sans-serif; text-align: center; margin-top: 100px;">
+
+    <h2>Conectando de forma segura con la pasarela Redsys...</h2>
+    <p>Si no te redirige automáticamente en 3 segundos, pulsa el botón de abajo.</p>
+
+    <form id="formRedsys" action="https://sis-t.redsys.es:25443/sis/realizarPago" method="POST">
+        <input type="hidden" name="Ds_SignatureVersion" value="HMAC_SHA256_V1"/>
+        
+        <input type="hidden" name="Ds_MerchantParameters" value="eyJEU19NRVJDSEFOVF9BTU9VTlQiOiI0MzA2OTQiLCJEU19NRVJDSEFOVF9DT05TVU1FUkxBTkdVQUdFIjoiMDAxIiwiRFNfTUVSQ0hBTlRfQ1VSUkVOQ1kiOiI5NzgiLCJEU19NRVJDSEFOVF9NRVJDSEFOVENPREUiOiI5OTkwMDg4ODEiLCJEU19NRVJDSEFOVF9NRVJDSEFOVERBVEEiOiI2Mzc1fE5PUl81MTYxMXwxMDMwMzUiLCJEU19NRVJDSEFOVF9PUkRFUiI6IjAwMDAwMDAzMDJFNyIsIkRTX01FUkNIQU5UX1RFUk1JTkFMIjoiMDAxIiwiRFNfTUVSQ0hBTlRfVFJBTlNBQ1RJT05UWVBFIjoiMCIsIkRTX01FUkNIQU5UX01FUkNIQU5UVVJMIjoiaHR0cHM6Ly9zd2VhdC1zcGxhc2hpbmctY29hc3RsYW5kLm5ncm9rLWZyZWUuZGV2L3BheW1lbnRzL25vdGlmaWNhdGlvbiIsIkRzX01lcmNoYW50X1VybE9LIjoiaHR0cHM6Ly9zd2VhdC1zcGxhc2hpbmctY29hc3RsYW5kLm5ncm9rLWZyZWUuZGV2L3BheW1lbnRzL3N1Y2Nlc3MiLCJEc19NZXJjaGFudF9VcmxLTyI6Imh0dHBzOi8vc3dlYXQtc3BsYXNoaW5nLWNvYXN0bGFuZC5uZ3Jvay1mcmVlLmRldi9wYXltZW50cy9mYWlsdXJlIiwiRFNfTUVSQ0hBTlRfUEFZTUVUSE9EUyI6IlQifQ=="/>
+        <input type="hidden" name="Ds_Signature" value="GONchCgDBStYHPeW9kev/M2Ep9k8/9e+c0SID37EFbw="/>
+        
+        <input type="submit" value="Ir a pagar" style="padding: 12px 25px; font-size: 16px; cursor: pointer; background-color: #0056b3; color: white; border: none; border-radius: 4px;">
+    </form>
+
+    <script>
+        // Esto fuerza al navegador a enviar el formulario hacia internet al milisegundo de abrir la página
+        document.getElementById('formRedsys').submit();
+    </script>
+
+</body>
+</html>

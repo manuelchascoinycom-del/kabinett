@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+body {
+  background-color: #0f172a; /* Fondo azul oscuro pizarra */
+  color: #f8fafc;
+}
