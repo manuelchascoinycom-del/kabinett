@@ -12,7 +12,9 @@ interface Metadata {
 interface CustomField {
   id: string;
   name: string; // Ej: "Dificultad", "Editorial"
-  type: string;
+  type?: string;
+  field_type?: string;
+  options?: string[];
 }
 
 interface UploadItem {
@@ -193,20 +195,41 @@ const UploadQueueItem: React.FC<{
             <div className="pt-2 border-t border-slate-800/50">
               <span className="text-[10px] font-bold text-slate-400 block mb-2">Campos personalizados</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {customFields.map((field) => (
-                  <div key={field.id}>
-                    <label className="text-[10px] text-slate-400 font-medium block mb-1">
-                      {field.name}
-                    </label>
-                    <input
-                      type="text"
-                      value={customMetadata[field.name] || ''}
-                      onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
-                      placeholder={`Ej: ${field.name}`}
-                      className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                ))}
+                {customFields.map((field) => {
+                  const fieldType = field.field_type || field.type;
+                  const value = customMetadata[field.name] || '';
+
+                  return (
+                    <div key={field.id}>
+                      <label className="text-[10px] text-slate-400 font-medium block mb-1">
+                        {field.name}
+                      </label>
+
+                      {fieldType === 'select' ? (
+                        <select
+                          value={value}
+                          onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                        >
+                          <option value="">-- Seleccionar --</option>
+                          {field.options?.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={fieldType === 'number' ? 'number' : 'text'}
+                          value={value}
+                          onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
+                          placeholder={`Ej: ${field.name}`}
+                          className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

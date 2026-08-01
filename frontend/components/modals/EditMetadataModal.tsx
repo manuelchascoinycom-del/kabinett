@@ -11,7 +11,13 @@ interface EditMetadataModalProps {
     custom: Record<string, any>;
   };
   globalTags: string[];
-  customFields: Array<{ id: string; name: string; field_type?: string }>;
+  customFields: Array<{
+    id: string;
+    name: string;
+    field_type?: string;
+    type?: string; // Por retrocompatibilidad de nombres
+    options?: string[];
+  }>;
   setEditForm: React.Dispatch<React.SetStateAction<any>>;
   onClose: () => void;
   onConfirm: () => void;
@@ -86,22 +92,50 @@ export const EditMetadataModal: React.FC<EditMetadataModalProps> = ({
                 Campos Personalizados
               </label>
               <div className="grid grid-cols-2 gap-2">
-                {customFields.map((field) => (
-                  <div key={field.id}>
-                    <label className="text-[10px] text-slate-400 block mb-0.5">{field.name}</label>
-                    <input
-                      type={field.field_type === 'number' ? 'number' : 'text'}
-                      value={editForm.custom[field.name] || ''}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          custom: { ...editForm.custom, [field.name]: e.target.value },
-                        })
-                      }
-                      className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-purple-500"
-                    />
-                  </div>
-                ))}
+                {customFields.map((field) => {
+                  const fieldType = field.field_type || field.type;
+                  const value = editForm.custom[field.name] || '';
+
+                  return (
+                    <div key={field.id}>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">{field.name}</label>
+                      
+                      {/* 1. Si el tipo es SELECT / Desplegable */}
+                      {fieldType === 'select' ? (
+                        <select
+                          value={value}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              custom: { ...editForm.custom, [field.name]: e.target.value },
+                            })
+                          }
+                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-purple-500"
+                        >
+                          <option value="">-- Seleccionar --</option>
+                          {field.options?.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        /* 2. Para el resto de tipos (text, number, boolean) */
+                        <input
+                          type={fieldType === 'number' ? 'number' : 'text'}
+                          value={value}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              custom: { ...editForm.custom, [field.name]: e.target.value },
+                            })
+                          }
+                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-purple-500"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

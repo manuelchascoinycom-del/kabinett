@@ -5,7 +5,8 @@ import React from 'react';
 interface CustomField {
   id: string;
   name: string;
-  field_type: 'text' | 'number' | 'select' | 'boolean';
+  field_type?: 'text' | 'number' | 'select' | 'boolean' | string;
+  type?: string; // Por retrocompatibilidad si viene mapeado así
   options?: string[];
 }
 
@@ -116,18 +117,39 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
           <div className="pt-3 border-t border-slate-800/80">
             <h3 className="text-xs font-semibold text-slate-400 mb-2">Campos Personalizados</h3>
             <div className="space-y-3">
-              {customFields.map((field) => (
-                <div key={field.id}>
-                  <label className="text-[11px] text-slate-400 block mb-1">{field.name}</label>
-                  <input
-                    type="text"
-                    placeholder={`Filtrar por ${field.name}...`}
-                    value={selectedCustomFilters[field.name] || ''}
-                    onChange={(e) => onChangeCustomFilter(field.name, e.target.value)}
-                    className="w-full bg-slate-900/90 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 outline-none focus:border-emerald-500"
-                  />
-                </div>
-              ))}
+              {customFields.map((field) => {
+                const fieldType = field.field_type || field.type;
+                const value = selectedCustomFilters[field.name] || '';
+
+                return (
+                  <div key={field.id}>
+                    <label className="text-[11px] text-slate-400 block mb-1">{field.name}</label>
+                    
+                    {fieldType === 'select' ? (
+                      <select
+                        value={value}
+                        onChange={(e) => onChangeCustomFilter(field.name, e.target.value)}
+                        className="w-full bg-slate-900/90 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-emerald-500"
+                      >
+                        <option value="">Todos ({field.name})</option>
+                        {field.options?.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type={fieldType === 'number' ? 'number' : 'text'}
+                        placeholder={`Filtrar por ${field.name}...`}
+                        value={value}
+                        onChange={(e) => onChangeCustomFilter(field.name, e.target.value)}
+                        className="w-full bg-slate-900/90 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 outline-none focus:border-emerald-500"
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
