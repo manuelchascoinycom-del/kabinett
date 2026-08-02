@@ -95,18 +95,18 @@ const UploadQueueItem: React.FC<{
   const E = T.error;
 
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-3 shadow-md">
+    <div className="bg-[var(--panel-bg-muted)] border border-[color:var(--border-color)] rounded-xl p-3.5 space-y-3 shadow-md">
       <div className="flex items-center justify-between text-xs">
         <div className="flex items-center gap-2 truncate max-w-[60%]">
-          <span className="text-slate-400">{T.fileIcon}</span>
-          <span className="text-slate-200 truncate font-semibold">{item.file.name}</span>
+          <span className="text-[color:var(--text-muted)]">{T.fileIcon}</span>
+          <span className="text-[color:var(--text-primary)] truncate font-semibold">{item.file.name}</span>
         </div>
 
         <div className="flex items-center gap-2">
-          {item.status === 'pending' && <span className="text-[11px] text-slate-400">{T.pendingStatus}</span>}
+          {item.status === 'pending' && <span className="text-[11px] text-[color:var(--text-muted)]">{T.pendingStatus}</span>}
           {item.status === 'uploading' && (
             <div className="flex items-center gap-2">
-              <div className="w-16 bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div className="w-16 bg-[var(--panel-hover)] h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-emerald-400 h-full transition-all duration-300"
                   style={{ width: `${item.progress}%` }}
@@ -119,7 +119,7 @@ const UploadQueueItem: React.FC<{
           {item.status === 'pending' && (
             <button
               onClick={() => onUploadSingleItem(item)}
-              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold rounded-md transition-colors"
+              className="px-2.5 py-1 bg-[var(--panel-bg)] hover:bg-[var(--panel-hover)] text-[color:var(--accent)] border border-[color:var(--accent-border)] text-[11px] font-semibold rounded-md transition-colors"
             >
               {T.uploadSingleIcon} {T.uploadSingleBtn}
             </button>
@@ -127,7 +127,7 @@ const UploadQueueItem: React.FC<{
 
           <button
             onClick={() => onRemoveItem(item.id)}
-            className="text-slate-500 hover:text-red-400 font-bold px-1 transition-colors"
+            className="text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] font-bold px-1 transition-colors"
             title={T.discardTooltip}
           >
             {APP_TEXTS.common.closeIcon}
@@ -136,19 +136,19 @@ const UploadQueueItem: React.FC<{
       </div>
 
       {item.status === 'error' && (
-        <div className="pt-2 border-t border-red-900/50">
-          <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-lg flex items-start justify-between gap-2">
+        <div className="pt-2 border-t border-[color:var(--danger-border)]">
+          <div className="p-3 bg-[var(--danger-surface)] border border-[color:var(--danger-border)] rounded-lg flex items-start justify-between gap-2">
             <div className="space-y-1">
-              <span className="text-xs font-bold text-red-400 flex items-center gap-1.5">
+              <span className="text-xs font-bold text-[color:var(--danger)] flex items-center gap-1.5">
                 {E.icon} {E.title}
               </span>
-              <p className="text-[11px] text-red-300/80 leading-relaxed">
+              <p className="text-[11px] text-[color:var(--text-secondary)] leading-relaxed">
                 {item.errorMessage || E.defaultMessage}
               </p>
             </div>
             <button
               onClick={() => onRemoveItem(item.id)}
-              className="px-2.5 py-1 bg-red-900/50 hover:bg-red-800 text-red-200 text-[10px] font-medium rounded transition-colors whitespace-nowrap"
+              className="px-2.5 py-1 bg-[var(--danger-soft)] hover:bg-[var(--danger-surface)] text-[color:var(--danger)] text-[10px] font-medium rounded transition-colors whitespace-nowrap border border-[color:var(--danger-border)]"
             >
               {E.discardBtn}
             </button>
@@ -157,45 +157,45 @@ const UploadQueueItem: React.FC<{
       )}
 
       {item.status === 'success' && item.backendId && (
-        <div className="pt-2 border-t border-slate-800/80 space-y-2.5 bg-slate-900/50 p-3 rounded-lg border border-emerald-500/20">
+        <div className="pt-2 border-t border-[color:var(--border-color)] space-y-2.5 bg-[var(--panel-bg)] p-3 rounded-lg border border-[color:var(--accent-border)]">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+            <span className="text-[11px] font-bold text-[color:var(--accent)] flex items-center gap-1">
               {M.icon} {M.title}
             </span>
-            <span className="text-[10px] text-slate-400 italic">{M.hint}</span>
+            <span className="text-[10px] text-[color:var(--text-muted)] italic">{M.hint}</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] text-slate-400 font-medium block mb-1">{M.titleLabel}</label>
+              <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.titleLabel}</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={M.titlePlaceholder}
-                className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-400 font-medium block mb-1">{M.composerLabel}</label>
+              <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.composerLabel}</label>
               <input
                 type="text"
                 value={composer}
                 onChange={(e) => setComposer(e.target.value)}
                 placeholder={M.composerPlaceholder}
-                className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-[10px] text-slate-400 font-medium block mb-1">{M.tagsLabel}</label>
+            <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.tagsLabel}</label>
             <TagInput tags={tags} allTags={globalTags} onChange={setTags} />
           </div>
 
           {customFields.length > 0 && (
-            <div className="pt-2 border-t border-slate-800/50">
-              <span className="text-[10px] font-bold text-slate-400 block mb-2">{M.customFieldsLabel}</span>
+            <div className="pt-2 border-t border-[color:var(--border-color)]">
+              <span className="text-[10px] font-bold text-[color:var(--text-muted)] block mb-2">{M.customFieldsLabel}</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {customFields.map((field) => {
                   const fieldType = field.field_type || field.type;
@@ -203,7 +203,7 @@ const UploadQueueItem: React.FC<{
 
                   return (
                     <div key={field.id}>
-                      <label className="text-[10px] text-slate-400 font-medium block mb-1">
+                      <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">
                         {field.name}
                       </label>
 
@@ -211,7 +211,7 @@ const UploadQueueItem: React.FC<{
                         <select
                           value={value}
                           onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                          className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
                         >
                           <option value="">{APP_TEXTS.common.selectPlaceholder}</option>
                           {field.options?.map((option) => (
@@ -226,7 +226,7 @@ const UploadQueueItem: React.FC<{
                           value={value}
                           onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
                           placeholder={APP_TEXTS.common.customFieldExample.replace('{fieldName}', field.name)}
-                          className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                          className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
                         />
                       )}
                     </div>
@@ -264,9 +264,9 @@ export const UploadQueue: React.FC<UploadQueueProps> = ({
   const T = APP_TEXTS.upload.queue;
 
   return (
-    <div className="bg-[#0d1322] border border-emerald-500/30 rounded-xl p-4 mb-6 shadow-lg">
+    <div className="bg-[var(--panel-bg)] border border-[color:var(--accent-border)] rounded-xl p-4 mb-6 shadow-lg">
       <div className="flex justify-between items-center mb-3">
-        <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-2">
+        <h4 className="text-xs font-bold text-[color:var(--accent)] flex items-center gap-2">
           <span>{T.containerIcon}</span> {T.containerTitle.replace('{count}', String(items.length))}
         </h4>
         {items.some((i) => i.status === 'pending') && (

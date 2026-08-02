@@ -61,17 +61,17 @@ export function TagInput({ tags = [], allTags = [], onChange }: TagInputProps) {
 
   return (
     <div className="relative w-full">
-      <div className="bg-slate-950 border border-slate-800 rounded-lg p-2 flex flex-wrap gap-1.5 items-center min-h-[42px] focus-within:border-emerald-500 transition-colors">
+      <div className="bg-[var(--input-bg)] border border-[color:var(--border-color)] rounded-lg p-2 flex flex-wrap gap-1.5 items-center min-h-[42px] focus-within:border-emerald-500 transition-colors">
         {currentTags.map((tag) => (
           <span
             key={tag}
-            className="bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1.5 font-medium"
+            className="bg-[var(--accent-surface)] border border-[color:var(--accent-border)] text-[color:var(--accent)] text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1.5 font-medium"
           >
             {T.tagPrefix}{tag}
             <button
               type="button"
               onClick={() => removeTag(tag)}
-              className="hover:text-emerald-200 text-emerald-500 font-bold text-xs"
+              className="hover:text-emerald-500 text-[color:var(--accent)] font-bold text-xs"
             >
               {APP_TEXTS.common.closeIcon}
             </button>
@@ -89,21 +89,21 @@ export function TagInput({ tags = [], allTags = [], onChange }: TagInputProps) {
               ? T.placeholderEmpty
               : T.placeholderAdd
           }
-          className="bg-transparent text-xs text-slate-200 outline-none flex-1 min-w-[140px] px-1"
+          className="bg-transparent text-xs text-[color:var(--text-primary)] outline-none flex-1 min-w-[140px] px-1 placeholder:text-[color:var(--text-muted)]"
         />
       </div>
 
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-40 overflow-y-auto">
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-[var(--panel-bg)] border border-[color:var(--border-color)] rounded-lg shadow-xl max-h-40 overflow-y-auto">
           {suggestions.map((sug) => (
             <button
               key={sug}
               type="button"
               onMouseDown={() => addTag(sug)}
-              className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-emerald-500/20 hover:text-emerald-300 flex items-center justify-between"
+              className="w-full text-left px-3 py-2 text-xs text-[color:var(--text-secondary)] hover:bg-[var(--accent-soft)] hover:text-[color:var(--accent)] flex items-center justify-between"
             >
               <span>{T.tagPrefix}{sug}</span>
-              <span className="text-[10px] text-slate-500 font-semibold">
+              <span className="text-[10px] text-[color:var(--text-subtle)] font-semibold">
                 {T.existingLabel}
               </span>
             </button>

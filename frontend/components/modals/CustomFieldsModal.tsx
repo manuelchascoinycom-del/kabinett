@@ -43,11 +43,11 @@ export const CustomFieldsModal: React.FC<CustomFieldsModalProps> = ({
   const { customFields: T } = APP_TEXTS.modals;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-[#0d1322] border border-slate-800 p-6 rounded-xl w-full max-w-md space-y-5 shadow-2xl">
-        <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-          <h3 className="text-sm font-bold text-slate-200">{T.title}</h3>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-sm font-bold">
+    <div className="app-overlay fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+      <div className="app-modal p-6 rounded-xl w-full max-w-md space-y-5 shadow-2xl">
+        <div className="flex justify-between items-center border-b border-[color:var(--border-color)] pb-3">
+          <h3 className="text-sm font-bold text-[color:var(--text-strong)]">{T.title}</h3>
+          <button onClick={onClose} className="text-[color:var(--text-subtle)] hover:text-[color:var(--text-secondary)] text-sm font-bold">
             {APP_TEXTS.common.closeIcon}
           </button>
         </div>
@@ -63,18 +63,18 @@ export const CustomFieldsModal: React.FC<CustomFieldsModalProps> = ({
                 return (
                   <div
                     key={field.id}
-                    className="flex items-center justify-between bg-slate-950/80 border border-slate-800 rounded-lg p-2 text-xs"
+                    className="flex items-center justify-between bg-[var(--panel-bg-muted)] border border-[color:var(--border-color)] rounded-lg p-2 text-xs"
                   >
                     <div className="truncate pr-2">
-                      <span className="font-semibold text-slate-200">{field.name}</span>
-                      <span className="ml-2 text-[10px] text-slate-500 capitalize">({type})</span>
+                      <span className="font-semibold text-[color:var(--text-primary)]">{field.name}</span>
+                      <span className="ml-2 text-[10px] text-[color:var(--text-subtle)] capitalize">({type})</span>
                     </div>
 
                     {onDeleteField && (
                       <button
                         type="button"
                         onClick={() => onDeleteField(field.id)}
-                        className="text-slate-500 hover:text-red-400 p-1 transition-colors text-xs shrink-0"
+                        className="text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] p-1 transition-colors text-xs shrink-0"
                         title={T.deleteFieldTooltip}
                       >
                         {APP_TEXTS.sidebar.deleteIcon}
@@ -87,28 +87,28 @@ export const CustomFieldsModal: React.FC<CustomFieldsModalProps> = ({
           </div>
         )}
 
-        <form onSubmit={onSubmit} className="space-y-4 pt-2 border-t border-slate-800/80">
+        <form onSubmit={onSubmit} className="space-y-4 pt-2 border-t border-[color:var(--border-color)]">
           <label className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
             {T.createNewFieldLabel}
           </label>
 
           <div>
-            <label className="text-xs text-slate-400 block mb-1">{T.fieldNameLabel}</label>
+            <label className="text-xs text-[color:var(--text-muted)] block mb-1">{T.fieldNameLabel}</label>
             <input
               type="text"
               placeholder={T.fieldNamePlaceholder}
               value={newFieldName}
               onChange={(e) => setNewFieldName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
+              className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
             />
           </div>
 
           <div>
-            <label className="text-xs text-slate-400 block mb-1">{T.fieldTypeLabel}</label>
+            <label className="text-xs text-[color:var(--text-muted)] block mb-1">{T.fieldTypeLabel}</label>
             <select
               value={newFieldType}
               onChange={(e) => setNewFieldType(e.target.value as any)}
-              className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
+              className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
             >
               <option value="text">{T.fieldTypeOptions.text}</option>
               <option value="number">{T.fieldTypeOptions.number}</option>
@@ -119,22 +119,22 @@ export const CustomFieldsModal: React.FC<CustomFieldsModalProps> = ({
 
           {newFieldType === 'select' && (
             <div>
-              <label className="text-xs text-slate-400 block mb-1">{T.optionsLabel}</label>
+              <label className="text-xs text-[color:var(--text-muted)] block mb-1">{T.optionsLabel}</label>
               <input
                 type="text"
                 placeholder={T.optionsPlaceholder}
                 value={newFieldOptions}
                 onChange={(e) => setNewFieldOptions(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
+                className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
               />
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+          <div className="flex justify-end gap-2 pt-3 border-t border-[color:var(--border-color)]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 text-slate-300 text-xs rounded-lg font-medium hover:bg-slate-700 transition-colors"
+              className="px-4 py-2 bg-[var(--panel-bg-muted)] text-[color:var(--text-secondary)] text-xs rounded-lg font-medium hover:bg-[var(--panel-hover)] border border-[color:var(--border-color)] transition-colors"
             >
               {T.closeBtn}
             </button>

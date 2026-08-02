@@ -27,25 +27,25 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#0d1322] border border-slate-800 p-6 rounded-xl w-full max-w-sm space-y-4 shadow-2xl">
+    <div className="app-overlay fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="app-modal p-6 rounded-xl w-full max-w-sm space-y-4 shadow-2xl">
         <div className="flex items-start gap-3">
           <div className={`p-2.5 rounded-full shrink-0 ${
-            isDanger ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+            isDanger ? 'bg-[var(--danger-soft)] text-[color:var(--danger)] border border-[color:var(--danger-border)]' : 'bg-[var(--accent-soft)] text-[color:var(--accent)] border border-[color:var(--accent-border)]'
           }`}>
             {isDanger ? APP_TEXTS.modals.confirmModal.dangerIcon : APP_TEXTS.modals.confirmModal.infoIcon}
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-200">{title}</h3>
-            <p className="text-xs text-slate-400 leading-relaxed mt-1">{message}</p>
+            <h3 className="text-sm font-bold text-[color:var(--text-strong)]">{title}</h3>
+            <p className="text-xs text-[color:var(--text-muted)] leading-relaxed mt-1">{message}</p>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-slate-800/80">
+        <div className="flex justify-end gap-2 pt-2 border-t border-[color:var(--border-color)]">
           <button
             type="button"
             onClick={onClose}
-            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg font-medium transition-colors"
+            className="px-3.5 py-1.5 bg-[var(--panel-bg-muted)] hover:bg-[var(--panel-hover)] border border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-lg font-medium transition-colors"
           >
             {cancelText}
           </button>

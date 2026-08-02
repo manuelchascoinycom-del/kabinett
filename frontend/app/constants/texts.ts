@@ -169,4 +169,10 @@ export const APP_TEXTS = {
     rootLibraryTitle: 'Biblioteca Raíz',
     collectionTitlePrefix: 'Colección: ',
   },
+  theme: {
+    label: 'Apariencia',
+    light: 'Claro',
+    dark: 'Oscuro',
+    system: 'Sistema',
+  },
 } as const;

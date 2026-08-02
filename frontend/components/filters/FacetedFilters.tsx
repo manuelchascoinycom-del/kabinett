@@ -42,14 +42,14 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
   const T = APP_TEXTS.facetedFilters;
 
   return (
-    <aside className="w-64 bg-[#0b101d] border-r border-slate-800/80 p-5 shrink-0 flex flex-col justify-between overflow-y-auto">
+    <aside className="w-64 bg-[var(--sidebar-bg)] border-r border-[color:var(--border-color)] p-5 shrink-0 flex flex-col justify-between overflow-y-auto transition-colors duration-200">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+          <h2 className="text-xs font-bold text-[color:var(--text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
             <span>{T.titleIcon}</span> {T.title}
           </h2>
           {hasActiveFilters && (
-            <button onClick={onClearAllFilters} className="text-[10px] text-emerald-400 hover:underline font-semibold">
+            <button onClick={onClearAllFilters} className="text-[10px] text-[color:var(--accent)] hover:underline font-semibold">
               {T.clearAllBtn}
             </button>
           )}
@@ -57,7 +57,7 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
 
         {Object.keys(facets.composerCounts).length > 0 && (
           <div>
-            <h3 className="text-xs font-semibold text-slate-400 mb-2">{T.composersSection}</h3>
+            <h3 className="text-xs font-semibold text-[color:var(--text-muted)] mb-2">{T.composersSection}</h3>
             <div className="space-y-1">
               {Object.entries(facets.composerCounts).map(([composer, count]) => {
                 const isSelected = selectedComposers.includes(composer);
@@ -67,8 +67,8 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
                     onClick={() => onToggleComposer(composer)}
                     className={`w-full text-left px-2.5 py-1.5 rounded text-xs flex items-center justify-between transition-colors ${
                       isSelected
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium'
-                        : 'text-slate-400 hover:bg-slate-800/50'
+                        ? 'bg-[var(--accent-soft)] text-[color:var(--accent)] border border-[color:var(--accent-border)] font-medium'
+                        : 'text-[color:var(--text-muted)] hover:bg-[var(--panel-hover)] hover:text-[color:var(--text-secondary)]'
                     }`}
                   >
                     <span className="truncate flex items-center gap-2">
@@ -76,11 +76,11 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => {}}
-                        className="rounded border-slate-700 text-emerald-500 focus:ring-0 bg-slate-900"
+                        className="rounded border-[color:var(--border-color)] text-emerald-500 focus:ring-0 bg-[var(--input-bg)]"
                       />
                       {composer}
                     </span>
-                    <span className="text-[10px] text-slate-500 font-mono">({count})</span>
+                    <span className="text-[10px] text-[color:var(--text-subtle)] font-mono">({count})</span>
                   </button>
                 );
               })}
@@ -90,7 +90,7 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
 
         {Object.keys(facets.tagCounts).length > 0 && (
           <div>
-            <h3 className="text-xs font-semibold text-slate-400 mb-2">{T.tagsSection}</h3>
+            <h3 className="text-xs font-semibold text-[color:var(--text-muted)] mb-2">{T.tagsSection}</h3>
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(facets.tagCounts).map(([tag, count]) => {
                 const isSelected = selectedTags.includes(tag);
@@ -101,7 +101,7 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
                     className={`text-[11px] px-2.5 py-0.5 rounded-full border transition-all flex items-center gap-1 ${
                       isSelected
                         ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-bold'
-                        : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:border-slate-700'
+                        : 'bg-[var(--panel-bg)] border-[color:var(--border-color)] text-[color:var(--text-muted)] hover:border-[color:var(--border-hover)]'
                     }`}
                   >
                     {APP_TEXTS.tagInput.tagPrefix}{tag}
@@ -114,8 +114,8 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
         )}
 
         {customFields.length > 0 && (
-          <div className="pt-3 border-t border-slate-800/80">
-            <h3 className="text-xs font-semibold text-slate-400 mb-2">{T.customFieldsSection}</h3>
+          <div className="pt-3 border-t border-[color:var(--border-color)]">
+            <h3 className="text-xs font-semibold text-[color:var(--text-muted)] mb-2">{T.customFieldsSection}</h3>
             <div className="space-y-3">
               {customFields.map((field) => {
                 const fieldType = field.field_type || field.type;
@@ -123,13 +123,13 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
 
                 return (
                   <div key={field.id}>
-                    <label className="text-[11px] text-slate-400 block mb-1">{field.name}</label>
+                    <label className="text-[11px] text-[color:var(--text-muted)] block mb-1">{field.name}</label>
 
                     {fieldType === 'select' ? (
                       <select
                         value={value}
                         onChange={(e) => onChangeCustomFilter(field.name, e.target.value)}
-                        className="w-full bg-slate-900/90 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-emerald-500"
+                        className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] rounded px-2 py-1 text-xs text-[color:var(--text-primary)] outline-none focus:border-emerald-500"
                       >
                         <option value="">{T.selectAllCustomField.replace('{fieldName}', field.name)}</option>
                         {field.options?.map((option) => (
@@ -144,7 +144,7 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
                         placeholder={T.filterByCustomFieldPlaceholder.replace('{fieldName}', field.name)}
                         value={value}
                         onChange={(e) => onChangeCustomFilter(field.name, e.target.value)}
-                        className="w-full bg-slate-900/90 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 outline-none focus:border-emerald-500"
+                        className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] rounded px-2.5 py-1 text-xs text-[color:var(--text-primary)] outline-none focus:border-emerald-500"
                       />
                     )}
                   </div>

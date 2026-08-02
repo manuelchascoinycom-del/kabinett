@@ -26,6 +26,23 @@ const PDFViewer = dynamic(() => import('@/components/documents/PDFViewer'), {
   ssr: false,
 });
 
+type ThemeMode = 'light' | 'dark' | 'system';
+
+const THEME_STORAGE_KEY = 'kabinett-theme-mode';
+
+function applyThemeMode(mode: ThemeMode) {
+  if (typeof window === 'undefined') return;
+
+  const root = document.documentElement;
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  const resolvedTheme = mode === 'system' ? (media.matches ? 'dark' : 'light') : mode;
+
+  root.dataset.themeMode = mode;
+  root.dataset.theme = resolvedTheme;
+  root.style.colorScheme = resolvedTheme;
+  window.localStorage.setItem(THEME_STORAGE_KEY, mode);
+}
+
 interface Metadata {
   title: string;
   composer: string;
@@ -61,6 +78,11 @@ interface UploadItem {
 }
 
 export default function Home() {
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (typeof document === 'undefined') return 'system';
+    return (document.documentElement.dataset.themeMode as ThemeMode) || 'system';
+  });
+
   // 🟢 ESTADO 1: Cola de Subida Local
   const [uploadQueueItems, setUploadQueueItems] = useState<UploadItem[]>([]);
 
@@ -113,6 +135,35 @@ export default function Home() {
   const [selectedComposers, setSelectedComposers] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedCustomFilters, setSelectedCustomFilters] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const initialMode = (root.dataset.themeMode as ThemeMode) || 'system';
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+
+    setThemeMode(initialMode);
+    applyThemeMode(initialMode);
+
+    const handleSystemThemeChange = () => {
+      const currentMode = (document.documentElement.dataset.themeMode as ThemeMode) || 'system';
+      if (currentMode === 'system') {
+        applyThemeMode('system');
+      }
+    };
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', handleSystemThemeChange);
+      return () => media.removeEventListener('change', handleSystemThemeChange);
+    }
+
+    media.addListener(handleSystemThemeChange);
+    return () => media.removeListener(handleSystemThemeChange);
+  }, []);
+
+  const handleThemeModeChange = useCallback((mode: ThemeMode) => {
+    setThemeMode(mode);
+    applyThemeMode(mode);
+  }, []);
 
   const fetchCollections = async () => {
     try {
@@ -617,13 +668,15 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#090d16] text-slate-100 font-sans">
+    <div className="flex min-h-screen bg-[var(--app-bg)] text-[color:var(--text-primary)] font-sans transition-colors duration-200">
       {/* Sidebar 1: Navegación Principal y Colecciones */}
       <Sidebar
         totalGlobalDocuments={totalGlobalDocuments}
         selectedCollectionId={selectedCollectionId}
         setSelectedCollectionId={setSelectedCollectionId}
         collections={collections}
+        themeMode={themeMode}
+        onThemeModeChange={handleThemeModeChange}
         onOpenNewCollectionModal={() => setShowNewCollectionModal(true)}
         onOpenConfigModal={() => setShowConfigModal(true)}
         onDeleteCollection={handleDeleteCollectionClick}
@@ -663,7 +716,7 @@ export default function Home() {
           />
 
           {globalError && (
-            <div className="mb-4 p-3 bg-red-950/60 border border-red-500/30 text-red-400 text-xs rounded-lg">
+            <div className="mb-4 p-3 bg-[var(--danger-surface)] border border-[color:var(--danger-border)] text-[color:var(--danger)] text-xs rounded-lg">
               {globalError}
             </div>
           )}
@@ -681,7 +734,7 @@ export default function Home() {
 
           {/* SECCIÓN DE DOCUMENTOS */}
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-slate-200">
+            <h3 className="text-sm font-bold text-[color:var(--text-strong)]">
               {selectedCollectionId
                 ? `${APP_TEXTS.home.collectionTitlePrefix}${collections.find((c) => c.id === selectedCollectionId)?.name || ''}`
                 : APP_TEXTS.home.rootLibraryTitle}{' '}

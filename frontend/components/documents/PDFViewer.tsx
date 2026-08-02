@@ -52,12 +52,9 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
 
     loadingTaskRef.current = loadingTask;
 
-    loadingTask.onProgress = null;
-
     loadingTask.promise
       .then((pdf) => {
         if (!isMounted) {
-          pdf.destroy().catch(() => {});
           return;
         }
         setPdfDoc(pdf);
@@ -109,7 +106,7 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
           canvasContext: context,
           viewport: viewport,
           canvas: canvas,
-        } as pdfjsLib.RenderParameters;
+        };
 
         const renderTask = page.render(renderContext);
         renderTaskRef.current = renderTask;
@@ -167,12 +164,7 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
         renderTaskRef.current = null;
       }
       if (pdfDoc) {
-        // En pdfjs moderno se usa cleanup() o comprobación segura:
-        if (typeof pdfDoc.cleanup === 'function') {
-          pdfDoc.cleanup();
-        } else if (typeof pdfDoc.destroy === 'function') {
-          pdfDoc.destroy().catch(() => {});
-        }
+        pdfDoc.cleanup();
       }
     };
   }, [pdfDoc]);
@@ -190,65 +182,65 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
 
   return (
     <div
-      className={`fixed inset-0 z-50 bg-slate-950 flex flex-col justify-between transition-all duration-300 ${
-        isAtrilMode ? 'bg-black' : 'bg-slate-950/90 backdrop-blur-md'
+      className={`fixed inset-0 z-50 flex flex-col justify-between transition-all duration-300 ${
+        isAtrilMode ? 'bg-[var(--viewer-shell)]' : 'bg-[var(--overlay-bg)] backdrop-blur-md'
       }`}
       onClick={handleContainerClick}
     >
-      <header className={`bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shadow-lg shrink-0 transition-all duration-300 ${
+      <header className={`bg-[var(--viewer-header)] border-b border-[color:var(--border-color)] px-6 py-3 flex items-center justify-between shadow-lg shrink-0 transition-all duration-300 ${
         isAtrilMode ? '-translate-y-full opacity-0 pointer-events-none h-0 overflow-hidden py-0 border-none' : 'translate-y-0 opacity-100'
       }`}>
         <div className="flex items-center gap-3">
           <span className="text-xl">{T.sheetMusicIcon}</span>
-          <h3 className="text-sm font-bold text-slate-100 truncate max-w-xs md:max-w-md">
+          <h3 className="text-sm font-bold text-[color:var(--text-strong)] truncate max-w-xs md:max-w-md">
             {title}
           </h3>
         </div>
 
-        <div className="flex items-center gap-4 bg-slate-950 px-4 py-1.5 rounded-xl border border-slate-800">
+        <div className="flex items-center gap-4 bg-[var(--panel-bg-muted)] px-4 py-1.5 rounded-xl border border-[color:var(--border-color)]">
           <div className="flex items-center gap-2">
             <button
               onClick={prevPage}
               disabled={pageNum <= 1}
-              className="p-1 rounded text-slate-300 hover:bg-slate-800 disabled:opacity-30"
+              className="p-1 rounded text-[color:var(--text-secondary)] hover:bg-[var(--panel-hover)] disabled:opacity-30"
               title={T.prevPageTitle}
             >
               {T.prevPageIcon}
             </button>
-            <span className="text-xs text-slate-300 font-mono">
+            <span className="text-xs text-[color:var(--text-secondary)] font-mono">
               <strong className="text-emerald-400">{pageNum}</strong> {T.pageSeparator} {numPages || '-'}
             </span>
             <button
               onClick={nextPage}
               disabled={pageNum >= numPages}
-              className="p-1 rounded text-slate-300 hover:bg-slate-800 disabled:opacity-30"
+              className="p-1 rounded text-[color:var(--text-secondary)] hover:bg-[var(--panel-hover)] disabled:opacity-30"
               title={T.nextPageTitle}
             >
               {T.nextPageIcon}
             </button>
           </div>
 
-          <div className="h-4 w-px bg-slate-800" />
+          <div className="h-4 w-px bg-[var(--border-color)]" />
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setScale((s) => Math.max(s - 0.15, 0.5))}
-              className="px-2 py-0.5 text-xs font-bold text-slate-300 hover:bg-slate-800 rounded"
+              className="px-2 py-0.5 text-xs font-bold text-[color:var(--text-secondary)] hover:bg-[var(--panel-hover)] rounded"
             >
               {T.zoomOut}
             </button>
-            <span className="text-xs text-slate-400 font-mono font-semibold w-12 text-center">
+            <span className="text-xs text-[color:var(--text-muted)] font-mono font-semibold w-12 text-center">
               {Math.round(scale * 100)}%
             </span>
             <button
               onClick={() => setScale((s) => Math.min(s + 0.15, 3.0))}
-              className="px-2 py-0.5 text-xs font-bold text-slate-300 hover:bg-slate-800 rounded"
+              className="px-2 py-0.5 text-xs font-bold text-[color:var(--text-secondary)] hover:bg-[var(--panel-hover)] rounded"
             >
               {T.zoomIn}
             </button>
             <button
               onClick={fitToWidth}
-              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium rounded transition-colors"
+              className="px-2.5 py-1 bg-[var(--panel-bg)] hover:bg-[var(--panel-hover)] border border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-[11px] font-medium rounded transition-colors"
             >
               {T.fitWidthBtn}
             </button>
@@ -278,7 +270,7 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
             e.stopPropagation();
             setIsAtrilMode(false);
           }}
-          className="fixed top-4 right-4 z-50 px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 text-xs font-medium rounded-full backdrop-blur border border-slate-700 shadow-xl transition-all"
+          className="fixed top-4 right-4 z-50 px-3 py-1.5 bg-[var(--viewer-header)] hover:bg-[var(--panel-hover)] text-[color:var(--text-secondary)] text-xs font-medium rounded-full backdrop-blur border border-[color:var(--border-color)] shadow-xl transition-all"
           title={T.exitAtrilTitle}
         >
           {T.exitAtrilBtn}
@@ -288,7 +280,7 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
       <main
         ref={containerRef}
         className={`flex-1 overflow-auto flex justify-center items-start transition-all duration-300 ${
-          isAtrilMode ? 'p-0 bg-black items-center' : 'p-6 bg-slate-950/50'
+          isAtrilMode ? 'p-0 bg-[var(--viewer-shell)] items-center' : 'p-6 bg-[var(--viewer-surface)]'
         }`}
       >
         {loading && (
