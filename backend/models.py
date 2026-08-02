@@ -86,6 +86,7 @@ class Document(Base):
         default=DocumentStatus.UPLOADING,
     )
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_suggested: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     metadata_confirmed: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     custom_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)

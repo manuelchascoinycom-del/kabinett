@@ -26,31 +26,51 @@ class FilterPayloadSchema(BaseModel):
 
 
 def process_pdf_in_background(document_id: str, file_path: str):
-    db: Session = SessionLocal()
+    # Creamos una sesión de BD completamente limpia e independiente
+    db = SessionLocal()
     try:
         doc = db.query(models.Document).filter(models.Document.id == document_id).first()
         if not doc:
+            print(f"❌ [Background] No se encontró el documento ID: {document_id}")
             return
 
+        print(f"⏳ [Background] Procesando PDF {document_id}...")
+
+        # 1. Extraer texto
         extracted_text = extract_text_from_first_pages(file_path, max_pages=3)
+        
+        if not extracted_text or not extracted_text.strip():
+            raise ValueError("No se pudo extraer texto del PDF (archivo corrupto o sin OCR).")
+
         doc.raw_text = extracted_text
 
+        # 2. IA para metadatos (protegido para que NUNCA cancele el guardado)
         try:
             suggested = analyze_document_metadata(extracted_text)
             doc.metadata_suggested = suggested
         except Exception as ai_err:
-            print(f"⚠️ Error al sugerir metadatos: {ai_err}")
+            print(f"⚠️ [Background] Falló la IA pero continuamos: {ai_err}")
+            doc.metadata_suggested = {}
 
+        # 3. Cambiar estado y confirmar guardado
         doc.status = models.DocumentStatus.PENDING_REVIEW
         db.commit()
+        print(f"✅ [Background] Documento {document_id} guardado con éxito como PENDING_REVIEW")
+
     except Exception as e:
         db.rollback()
-        doc = db.query(models.Document).filter(models.Document.id == document_id).first()
-        if doc:
-            doc.status = models.DocumentStatus.ERROR
-            db.commit()
+        print(f"🚨 [Background] Error crítico: {e}")
+        try:
+            # Reintentamos guardar el estado de ERROR
+            doc = db.query(models.Document).filter(models.Document.id == document_id).first()
+            if doc:
+                doc.status = models.DocumentStatus.ERROR
+                doc.error_message = str(e)
+                db.commit()
+        except Exception as rollback_err:
+            print(f"🚨 [Background] Error al guardar el mensaje de error: {rollback_err}")
     finally:
-        db.close()
+        db.close() # Siempre cerramos la sesión limpia
 
 
 @router.post("/upload-pdf", status_code=status.HTTP_201_CREATED)
@@ -229,10 +249,14 @@ def confirm_metadata(
     db.commit()
     db.refresh(doc)
 
+    # ✅ Devolvemos la estructura completa para cumplir con Promise<BackendDocument>
     return {
-        "message": "Metadatos confirmados con éxito", 
-        "metadata": doc.metadata_confirmed,
-        "custom_metadata": doc.custom_metadata
+        "id": str(doc.id),
+        "filename": doc.filename,
+        "status": doc.status.value if hasattr(doc.status, "value") else str(doc.status),
+        "metadata_confirmed": doc.metadata_confirmed,
+        "metadata_suggested": doc.metadata_suggested,
+        "custom_metadata": doc.custom_metadata or {}
     }
 
 
@@ -256,3 +280,21 @@ def get_document_file(document_id: str, db: Session = Depends(get_db)):
             "Cache-Control": "public, max-age=3600",
         }
     )
+    
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(document_id: str, db: Session = Depends(get_db)):
+    doc = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    
+    # 1. Eliminar archivo del sistema de archivos/disco si existe
+    if doc.storage_path and os.path.exists(doc.storage_path):
+        try:
+            os.remove(doc.storage_path)
+        except Exception as e:
+            print(f"Error borrando archivo del disco: {e}")
+
+    # 2. Eliminar registro de la base de datos
+    db.delete(doc)
+    db.commit()
+    return None

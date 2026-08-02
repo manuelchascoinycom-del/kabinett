@@ -80,8 +80,8 @@ export const documentService = {
   },
 
   // Eliminar un documento
-  delete: async (id: string): Promise<void> => {
-    return fetchApi<void>(`/documents/${id}`, {
+  deleteDocument: async (documentId: string): Promise<void> => {
+    return fetchApi<void>(`/documents/${documentId}`, {
       method: 'DELETE',
     });
   },

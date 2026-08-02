@@ -14,15 +14,34 @@ import { CustomFieldsModal } from '@/components/modals/CustomFieldsModal';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { SearchBar } from '@/components/documents/SearchBar';
 import { Dropzone } from '@/components/upload/Dropzone';
+import { ConfirmModal } from '@/components/modals/ConfirmModal';
 
 import { collectionService } from '@/services/collectionService';
-import { documentService } from '@/services/documentService';
+import { documentService, BackendDocument } from '@/services/documentService';
 import { customFieldsService } from '@/services/customFieldsService';
 import { tagService } from '@/services/tagService';
+import { APP_TEXTS } from '@/app/constants/texts';
 
 const PDFViewer = dynamic(() => import('@/components/documents/PDFViewer'), {
   ssr: false,
 });
+
+type ThemeMode = 'light' | 'dark' | 'system';
+
+const THEME_STORAGE_KEY = 'kabinett-theme-mode';
+
+function applyThemeMode(mode: ThemeMode) {
+  if (typeof window === 'undefined') return;
+
+  const root = document.documentElement;
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  const resolvedTheme = mode === 'system' ? (media.matches ? 'dark' : 'light') : mode;
+
+  root.dataset.themeMode = mode;
+  root.dataset.theme = resolvedTheme;
+  root.style.colorScheme = resolvedTheme;
+  window.localStorage.setItem(THEME_STORAGE_KEY, mode);
+}
 
 interface Metadata {
   title: string;
@@ -59,6 +78,11 @@ interface UploadItem {
 }
 
 export default function Home() {
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (typeof document === 'undefined') return 'system';
+    return (document.documentElement.dataset.themeMode as ThemeMode) || 'system';
+  });
+
   // 🟢 ESTADO 1: Cola de Subida Local
   const [uploadQueueItems, setUploadQueueItems] = useState<UploadItem[]>([]);
 
@@ -111,6 +135,35 @@ export default function Home() {
   const [selectedComposers, setSelectedComposers] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedCustomFilters, setSelectedCustomFilters] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const initialMode = (root.dataset.themeMode as ThemeMode) || 'system';
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+
+    setThemeMode(initialMode);
+    applyThemeMode(initialMode);
+
+    const handleSystemThemeChange = () => {
+      const currentMode = (document.documentElement.dataset.themeMode as ThemeMode) || 'system';
+      if (currentMode === 'system') {
+        applyThemeMode('system');
+      }
+    };
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', handleSystemThemeChange);
+      return () => media.removeEventListener('change', handleSystemThemeChange);
+    }
+
+    media.addListener(handleSystemThemeChange);
+    return () => media.removeListener(handleSystemThemeChange);
+  }, []);
+
+  const handleThemeModeChange = useCallback((mode: ThemeMode) => {
+    setThemeMode(mode);
+    applyThemeMode(mode);
+  }, []);
 
   const fetchCollections = async () => {
     try {
@@ -287,15 +340,35 @@ export default function Home() {
 
           const statusData = await documentService.getStatus(data.id);
           
-          // Si ya no está procesando (ej. PENDING_REVIEW o READY)
-          if (statusData.status === 'pending_review') {
-            data = statusData; // Actualizamos 'data' con los metadatos completos
+          // Si el estado ya cambió (sea éxito o error)
+          const currentStatus = (statusData.status || '').toUpperCase();
+          if (currentStatus !== 'PROCESSING') {
+            data = statusData; // Actualizamos 'data' con el estado final
             isCompleted = true;
           }
         }
       }
 
-      // 3. Mapeamos la respuesta final (que ya incluye metadata_suggested)
+      // 3. Comprobamos si el estado final del Backend fue ERROR
+      const finalBackendStatus = (data.status || '').toUpperCase();
+
+      if (finalBackendStatus === 'ERROR') {
+        setUploadQueueItems((prev) =>
+          prev.map((item) =>
+            item.id === fileItem.id
+              ? {
+                  ...item,
+                  status: 'error',
+                  errorMessage: data.error_message || 'Error en el procesamiento del archivo',
+                  backendId: data.id,
+                }
+              : item
+          )
+        );
+        return; // Detenemos la ejecución aquí
+      }
+
+      // 4. Si fue exitoso, mapeamos la respuesta final
       const uploadedItem: UploadItem = {
         ...fileItem,
         progress: 100,
@@ -353,13 +426,27 @@ export default function Home() {
     }
   };
 
-  const removeItemFromQueue = (id: string) => {
-    setUploadQueueItems((prev) => prev.filter((item) => item.id !== id));
-  };
+  const removeItemFromQueue = async (id: string) => {
+    // 1. Buscamos el elemento en el estado de la cola
+    const itemToRemove = uploadQueueItems.find((item) => item.id === id);
+
+    // 2. Si ya se subió al backend (tiene backendId), llamamos al servicio para borrarlo de la BD y del disco
+    if (itemToRemove?.backendId) {
+      try {
+        await documentService.delete(itemToRemove.backendId);
+      } catch (error) {
+        console.error("Error al eliminar el documento del servidor:", error);
+        // Opcional: podrías mostrar una notificación toast o alerta aquí si falla la red
+      }
+  }
+
+  // 3. Lo quitamos del estado visual de la cola
+  setUploadQueueItems((prev) => prev.filter((item) => item.id !== id));
+};
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    onDropRejected: () => setGlobalError('Formato no soportado en esta versión'),
+    onDropRejected: () => setGlobalError(APP_TEXTS.home.dropRejectedError),
     accept: { 'application/pdf': ['.pdf'] },
     multiple: true,
   });
@@ -388,44 +475,84 @@ export default function Home() {
     }
   };
 
+  // Borra de la BD + Quita de la pantalla
+  const handleDiscardItem = async (queueId: string) => {
+    const itemToRemove = uploadQueueItems.find((item) => item.id === queueId);
+    
+    // Si llegó a subir al backend, lo borramos de la BD y disco
+    if (itemToRemove?.backendId) {
+      try {
+        await documentService.deleteDocument(itemToRemove.backendId);
+      } catch (e) {
+        console.error("Error al borrar del servidor:", e);
+      }
+    }
+
+    // Lo borramos de la lista local en pantalla
+    setUploadQueueItems((prev) => prev.filter((item) => item.id !== queueId));
+  };
+
+  // Guarda metadatos en la BD + Solo quita de la pantalla
   const handleConfirmQueueItem = async (
     backendId: string,
-    metadata: { title: string; composer: string; tags: string[] },
+    metadata: Metadata,
+    customMetadata: Record<string, any>,
     queueId: string
   ) => {
     try {
-      // Usamos el servicio centralizado pasando el backendId y el objeto metadata
-      await documentService.confirmMetadata(backendId, metadata);
+      const payload = {
+        title: metadata.title,
+        composer: metadata.composer,
+        tags: metadata.tags,
+        custom_metadata: customMetadata,
+      };
 
-      // Si no hay error, ejecutamos las acciones de éxito
+      // 1. Guardamos la confirmación en el Backend
+      await documentService.confirmMetadata(backendId, payload);
+
+      // 2. SOLO quitamos la tarjeta de la cola local (¡SIN HACER DELETE HTTP!)
       setUploadQueueItems((prev) => prev.filter((item) => item.id !== queueId));
-      await fetchDocuments();
-      await applyFilters();
-    } catch (e) {
-      console.error('Error al confirmar metadatos:', e);
+      
+      // 3. Refrescamos la lista de la biblioteca
+      fetchDocuments(); 
+      applyFilters();
+    } catch (error) {
+      console.error("Error al confirmar metadatos:", error);
     }
   };
 
   const handleCreateCustomField = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newFieldName.trim()) return;
+      e.preventDefault();
+      if (!newFieldName.trim()) return;
 
+      try {
+        const payload = {
+          name: newFieldName,
+          field_type: newFieldType,
+          options: newFieldType === 'select' ? newFieldOptions.split(',').map((s) => s.trim()) : [],
+        };
+
+        await customFieldsService.create(payload);
+
+        // Si tiene éxito, limpiamos el formulario y refrescamos la lista
+        setNewFieldName('');
+        setNewFieldOptions('');
+        setShowConfigModal(false);
+        fetchCustomFields();
+      } catch (e) {
+        console.error('Error al crear campo personalizado:', e);
+      }
+    };
+
+  const handleDeleteCustomField = async (fieldId: string) => {
     try {
-      const payload = {
-        name: newFieldName,
-        field_type: newFieldType,
-        options: newFieldType === 'select' ? newFieldOptions.split(',').map((s) => s.trim()) : [],
-      };
+      // 1. Llamada a la API de FastAPI a través del servicio
+      await customFieldsService.delete(fieldId);
 
-      await customFieldsService.create(payload);
-
-      // Si tiene éxito, limpiamos el formulario y refrescamos la lista
-      setNewFieldName('');
-      setNewFieldOptions('');
-      setShowConfigModal(false);
+      // 2. Volver a cargar la lista de campos en el estado global
       fetchCustomFields();
-    } catch (e) {
-      console.error('Error al crear campo personalizado:', e);
+    } catch (error) {
+      console.error('Error al eliminar campo personalizado:', error);
     }
   };
 
@@ -514,16 +641,45 @@ export default function Home() {
     }
   };
 
+  // 1. Estado para controlar el modal de borrado
+  const [collectionToDelete, setCollectionToDelete] = useState<string | null>(null);
+
+  // 2. Al pulsar el botón de la papelera en la Sidebar
+  const handleDeleteCollectionClick = (collectionId: string) => {
+    setCollectionToDelete(collectionId); // Abre el modal
+  };
+
+  // 3. Acción real de borrado (se ejecuta al pulsar "Eliminar" en el modal)
+  const handleConfirmDeleteCollection = async () => {
+    if (!collectionToDelete) return;
+
+    try {
+      await collectionService.delete(collectionToDelete);
+      fetchCollections();
+
+      if (selectedCollectionId === collectionToDelete) {
+        setSelectedCollectionId(null);
+      }
+    } catch (error) {
+      console.error('Error al eliminar colección:', error);
+    } finally {
+      setCollectionToDelete(null);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen bg-[#090d16] text-slate-100 font-sans">
+    <div className="flex min-h-screen bg-[var(--app-bg)] text-[color:var(--text-primary)] font-sans transition-colors duration-200">
       {/* Sidebar 1: Navegación Principal y Colecciones */}
       <Sidebar
         totalGlobalDocuments={totalGlobalDocuments}
         selectedCollectionId={selectedCollectionId}
         setSelectedCollectionId={setSelectedCollectionId}
         collections={collections}
+        themeMode={themeMode}
+        onThemeModeChange={handleThemeModeChange}
         onOpenNewCollectionModal={() => setShowNewCollectionModal(true)}
         onOpenConfigModal={() => setShowConfigModal(true)}
+        onDeleteCollection={handleDeleteCollectionClick}
       />
 
       {/* Sidebar 2: Panel Lateral de Filtros Facetados */}
@@ -560,7 +716,7 @@ export default function Home() {
           />
 
           {globalError && (
-            <div className="mb-4 p-3 bg-red-950/60 border border-red-500/30 text-red-400 text-xs rounded-lg">
+            <div className="mb-4 p-3 bg-[var(--danger-surface)] border border-[color:var(--danger-border)] text-[color:var(--danger)] text-xs rounded-lg">
               {globalError}
             </div>
           )}
@@ -572,16 +728,16 @@ export default function Home() {
             customFields={customFields}
             onStartUpload={handleStartUpload}
             onUploadSingleItem={(item) => uploadFileToServer(item)}
-            onRemoveItem={removeItemFromQueue}
+            onRemoveItem={handleDiscardItem}
             onConfirmItem={handleConfirmQueueItem}
           />
 
           {/* SECCIÓN DE DOCUMENTOS */}
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-slate-200">
+            <h3 className="text-sm font-bold text-[color:var(--text-strong)]">
               {selectedCollectionId
-                ? `Colección: ${collections.find((c) => c.id === selectedCollectionId)?.name || ''}`
-                : 'Biblioteca Raíz'}{' '}
+                ? `${APP_TEXTS.home.collectionTitlePrefix}${collections.find((c) => c.id === selectedCollectionId)?.name || ''}`
+                : APP_TEXTS.home.rootLibraryTitle}{' '}
               ({documents.length})
             </h3>
 
@@ -640,8 +796,21 @@ export default function Home() {
         setNewFieldType={setNewFieldType}
         newFieldOptions={newFieldOptions}
         setNewFieldOptions={setNewFieldOptions}
+        customFields={customFields}
+        onDeleteField={handleDeleteCustomField}
         onClose={() => setShowConfigModal(false)}
         onSubmit={handleCreateCustomField}
+      />
+
+      {/* Modal de confirmación de eliminación */}
+      <ConfirmModal
+        isOpen={!!collectionToDelete}
+        title={APP_TEXTS.modals.deleteCollection.title}
+        message={APP_TEXTS.modals.deleteCollection.message}
+        confirmText={APP_TEXTS.modals.deleteCollection.confirmBtn}
+        isDanger={true}
+        onConfirm={handleConfirmDeleteCollection}
+        onClose={() => setCollectionToDelete(null)}
       />
     </div>
   );

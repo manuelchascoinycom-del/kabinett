@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_TEXTS } from '@/app/constants/texts';
 
 interface CreateCollectionModalProps {
   isOpen: boolean;
@@ -17,31 +18,33 @@ export const CreateCollectionModal: React.FC<CreateCollectionModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const T = APP_TEXTS.modals.createCollection;
+
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+    <div className="app-overlay fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
       <form
         onSubmit={onSubmit}
-        className="bg-[#0d1322] border border-slate-800 p-6 rounded-xl w-full max-w-md space-y-4"
+        className="app-modal p-6 rounded-xl w-full max-w-md space-y-4"
       >
-        <h3 className="text-sm font-bold text-slate-200">Crear Colección Virtual</h3>
+        <h3 className="text-sm font-bold text-[color:var(--text-strong)]">{T.title}</h3>
         <input
           type="text"
-          placeholder="Nombre de la colección"
+          placeholder={T.namePlaceholder}
           value={newCollectionName}
           onChange={(e) => setNewCollectionName(e.target.value)}
-          className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
+          className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
           autoFocus
         />
         <div className="flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-slate-800 text-slate-300 text-xs rounded-lg font-medium"
+            className="px-4 py-2 bg-[var(--panel-bg-muted)] border border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-lg font-medium hover:bg-[var(--panel-hover)]"
           >
-            Cancelar
+            {APP_TEXTS.common.cancel}
           </button>
           <button type="submit" className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-lg">
-            Crear
+            {T.createBtn}
           </button>
         </div>
       </form>

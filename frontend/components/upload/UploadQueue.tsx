@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { TagInput } from '@/components/ui/TagInput';
+import { APP_TEXTS } from '@/app/constants/texts';
 
 interface Metadata {
   title: string;
@@ -11,8 +12,10 @@ interface Metadata {
 
 interface CustomField {
   id: string;
-  name: string; // Ej: "Dificultad", "Editorial"
-  type: string;
+  name: string;
+  type?: string;
+  field_type?: string;
+  options?: string[];
 }
 
 interface UploadItem {
@@ -29,7 +32,7 @@ interface UploadItem {
 interface UploadQueueProps {
   items: UploadItem[];
   globalTags?: string[];
-  customFields?: CustomField[]; // 👈 Pasa los campos creados si los tienes
+  customFields?: CustomField[];
   onStartUpload: () => void;
   onUploadSingleItem: (item: UploadItem) => void;
   onRemoveItem: (id: string) => void;
@@ -56,11 +59,7 @@ const UploadQueueItem: React.FC<{
 }> = ({ item, globalTags = [], customFields = [], onUploadSingleItem, onRemoveItem, onConfirmItem }) => {
   const [title, setTitle] = useState(item.suggestedMetadata?.title || item.file.name);
   const [composer, setComposer] = useState(item.suggestedMetadata?.composer || '');
-  
-  // 🏷️ 1. Ahora 'tags' es un Array en vez de string
   const [tags, setTags] = useState<string[]>(item.suggestedMetadata?.tags || []);
-  
-  // ⚙️ 2. Estado para los campos personalizados
   const [customMetadata, setCustomMetadata] = useState<Record<string, any>>(
     item.customMetadata || {}
   );
@@ -84,26 +83,30 @@ const UploadQueueItem: React.FC<{
   };
 
   const handleConfirm = () => {
-    if (!item.backendId) return;
+    if (!item.backendId) {
+      console.error(APP_TEXTS.common.confirmBackendIdError);
+      return;
+    }
     onConfirmItem(item.backendId, { title, composer, tags }, customMetadata, item.id);
-
-    onRemoveItem(item.id);
   };
 
+  const T = APP_TEXTS.upload.queue;
+  const M = T.metadataReview;
+  const E = T.error;
+
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-3 shadow-md">
-      {/* Cabecera del archivo en la cola */}
+    <div className="bg-[var(--panel-bg-muted)] border border-[color:var(--border-color)] rounded-xl p-3.5 space-y-3 shadow-md">
       <div className="flex items-center justify-between text-xs">
         <div className="flex items-center gap-2 truncate max-w-[60%]">
-          <span className="text-slate-400">📄</span>
-          <span className="text-slate-200 truncate font-semibold">{item.file.name}</span>
+          <span className="text-[color:var(--text-muted)]">{T.fileIcon}</span>
+          <span className="text-[color:var(--text-primary)] truncate font-semibold">{item.file.name}</span>
         </div>
 
         <div className="flex items-center gap-2">
-          {item.status === 'pending' && <span className="text-[11px] text-slate-400">En espera</span>}
+          {item.status === 'pending' && <span className="text-[11px] text-[color:var(--text-muted)]">{T.pendingStatus}</span>}
           {item.status === 'uploading' && (
             <div className="flex items-center gap-2">
-              <div className="w-16 bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div className="w-16 bg-[var(--panel-hover)] h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-emerald-400 h-full transition-all duration-300"
                   style={{ width: `${item.progress}%` }}
@@ -112,89 +115,123 @@ const UploadQueueItem: React.FC<{
               <span className="text-[10px] text-emerald-400 font-mono">{item.progress}%</span>
             </div>
           )}
-          {item.status === 'error' && (
-            <span className="text-[11px] text-red-400 font-medium">
-              {item.errorMessage || 'Error'}
-            </span>
-          )}
 
           {item.status === 'pending' && (
             <button
               onClick={() => onUploadSingleItem(item)}
-              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold rounded-md transition-colors"
+              className="px-2.5 py-1 bg-[var(--panel-bg)] hover:bg-[var(--panel-hover)] text-[color:var(--accent)] border border-[color:var(--accent-border)] text-[11px] font-semibold rounded-md transition-colors"
             >
-              ⬆️ Subir
+              {T.uploadSingleIcon} {T.uploadSingleBtn}
             </button>
           )}
 
           <button
             onClick={() => onRemoveItem(item.id)}
-            className="text-slate-500 hover:text-red-400 font-bold px-1 transition-colors"
-            title="Descartar"
+            className="text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] font-bold px-1 transition-colors"
+            title={T.discardTooltip}
           >
-            ✕
+            {APP_TEXTS.common.closeIcon}
           </button>
         </div>
       </div>
 
-      {/* REVISIÓN DE METADATOS SUGERIDOS Y PERSONALIZADOS */}
+      {item.status === 'error' && (
+        <div className="pt-2 border-t border-[color:var(--danger-border)]">
+          <div className="p-3 bg-[var(--danger-surface)] border border-[color:var(--danger-border)] rounded-lg flex items-start justify-between gap-2">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-[color:var(--danger)] flex items-center gap-1.5">
+                {E.icon} {E.title}
+              </span>
+              <p className="text-[11px] text-[color:var(--text-secondary)] leading-relaxed">
+                {item.errorMessage || E.defaultMessage}
+              </p>
+            </div>
+            <button
+              onClick={() => onRemoveItem(item.id)}
+              className="px-2.5 py-1 bg-[var(--danger-soft)] hover:bg-[var(--danger-surface)] text-[color:var(--danger)] text-[10px] font-medium rounded transition-colors whitespace-nowrap border border-[color:var(--danger-border)]"
+            >
+              {E.discardBtn}
+            </button>
+          </div>
+        </div>
+      )}
+
       {item.status === 'success' && item.backendId && (
-        <div className="pt-2 border-t border-slate-800/80 space-y-2.5 bg-slate-900/50 p-3 rounded-lg border border-emerald-500/20">
+        <div className="pt-2 border-t border-[color:var(--border-color)] space-y-2.5 bg-[var(--panel-bg)] p-3 rounded-lg border border-[color:var(--accent-border)]">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-              ✨ Metadatos extraídos por IA/OCR
+            <span className="text-[11px] font-bold text-[color:var(--accent)] flex items-center gap-1">
+              {M.icon} {M.title}
             </span>
-            <span className="text-[10px] text-slate-400 italic">Verifica antes de catalogar</span>
+            <span className="text-[10px] text-[color:var(--text-muted)] italic">{M.hint}</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] text-slate-400 font-medium block mb-1">Título de la Obra</label>
+              <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.titleLabel}</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Título"
-                className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                placeholder={M.titlePlaceholder}
+                className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-400 font-medium block mb-1">Compositor / Autor</label>
+              <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.composerLabel}</label>
               <input
                 type="text"
                 value={composer}
                 onChange={(e) => setComposer(e.target.value)}
-                placeholder="Compositor"
-                className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                placeholder={M.composerPlaceholder}
+                className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
               />
             </div>
           </div>
 
-          {/* 🏷️ COMPONENTE DE CHIPS PARA TAGS */}
           <div>
-            <label className="text-[10px] text-slate-400 font-medium block mb-1">Etiquetas (#Tags)</label>
-            <TagInput tags={tags} allTags={globalTags} onChange={setTags} placeholder="Añadir etiqueta y presionar Enter..." />
+            <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.tagsLabel}</label>
+            <TagInput tags={tags} allTags={globalTags} onChange={setTags} />
           </div>
 
-          {/* ⚙️ CAMPOS PERSONALIZADOS DINÁMICOS (Dificultad, Editorial, etc.) */}
           {customFields.length > 0 && (
-            <div className="pt-2 border-t border-slate-800/50">
-              <span className="text-[10px] font-bold text-slate-400 block mb-2">Campos personalizados</span>
+            <div className="pt-2 border-t border-[color:var(--border-color)]">
+              <span className="text-[10px] font-bold text-[color:var(--text-muted)] block mb-2">{M.customFieldsLabel}</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {customFields.map((field) => (
-                  <div key={field.id}>
-                    <label className="text-[10px] text-slate-400 font-medium block mb-1">
-                      {field.name}
-                    </label>
-                    <input
-                      type="text"
-                      value={customMetadata[field.name] || ''}
-                      onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
-                      placeholder={`Ej: ${field.name}`}
-                      className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                ))}
+                {customFields.map((field) => {
+                  const fieldType = field.field_type || field.type;
+                  const value = customMetadata[field.name] || '';
+
+                  return (
+                    <div key={field.id}>
+                      <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">
+                        {field.name}
+                      </label>
+
+                      {fieldType === 'select' ? (
+                        <select
+                          value={value}
+                          onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
+                          className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                        >
+                          <option value="">{APP_TEXTS.common.selectPlaceholder}</option>
+                          {field.options?.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={fieldType === 'number' ? 'number' : 'text'}
+                          value={value}
+                          onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
+                          placeholder={APP_TEXTS.common.customFieldExample.replace('{fieldName}', field.name)}
+                          className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -204,7 +241,7 @@ const UploadQueueItem: React.FC<{
               onClick={handleConfirm}
               className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition-colors shadow"
             >
-              Confirmar y Añadir a Biblioteca
+              {M.confirmBtn}
             </button>
           </div>
         </div>
@@ -224,18 +261,20 @@ export const UploadQueue: React.FC<UploadQueueProps> = ({
 }) => {
   if (items.length === 0) return null;
 
+  const T = APP_TEXTS.upload.queue;
+
   return (
-    <div className="bg-[#0d1322] border border-emerald-500/30 rounded-xl p-4 mb-6 shadow-lg">
+    <div className="bg-[var(--panel-bg)] border border-[color:var(--accent-border)] rounded-xl p-4 mb-6 shadow-lg">
       <div className="flex justify-between items-center mb-3">
-        <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-2">
-          <span>📥</span> Cola de procesamiento y carga ({items.length})
+        <h4 className="text-xs font-bold text-[color:var(--accent)] flex items-center gap-2">
+          <span>{T.containerIcon}</span> {T.containerTitle.replace('{count}', String(items.length))}
         </h4>
         {items.some((i) => i.status === 'pending') && (
           <button
             onClick={onStartUpload}
             className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-md"
           >
-            🚀 Subir Todos
+            {T.uploadAllIcon} {APP_TEXTS.common.uploadAll}
           </button>
         )}
       </div>

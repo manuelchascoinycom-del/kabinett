@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_TEXTS } from '@/app/constants/texts';
 
 interface DropzoneProps {
   getRootProps: () => any;
@@ -11,19 +12,20 @@ export const Dropzone: React.FC<DropzoneProps> = ({
   getInputProps,
   isDragActive,
 }) => {
+  const T = APP_TEXTS.upload.dropzone;
   return (
     <div
       {...getRootProps()}
       className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-300 mb-6 ${
         isDragActive
-          ? 'border-emerald-400 bg-slate-900/80 scale-[1.01]'
-          : 'border-slate-800/80 hover:border-slate-700 bg-[#0d1322]/50'
+          ? 'border-emerald-500 bg-[var(--accent-soft)] scale-[1.01]'
+          : 'border-[color:var(--border-color)] hover:border-[color:var(--border-hover)] bg-[var(--panel-bg-soft)]'
       }`}
     >
       <input {...getInputProps()} />
-      <div className="text-2xl mb-1">🎼</div>
-      <p className="text-slate-400 text-xs font-medium">
-        Arrastra tus partituras aquí o haz clic para explorar
+      <div className="text-2xl mb-1">{T.sheetMusicIcon}</div>
+      <p className="text-[color:var(--text-muted)] text-xs font-medium">
+        {T.instruction}
       </p>
     </div>
   );

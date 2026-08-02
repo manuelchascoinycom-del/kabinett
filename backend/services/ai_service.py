@@ -40,7 +40,7 @@ def analyze_document_metadata(raw_text: str) -> dict:
     try:
         # ⚡ 1. Cambiado a 'gemini-1.5-flash' (o 'gemini-2.0-flash')
         response = client.models.generate_content(
-            model='gemini-1.5-flash', 
+            model='gemini-2.5-flash', 
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
