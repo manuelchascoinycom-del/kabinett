@@ -17,9 +17,10 @@ import { Dropzone } from '@/components/upload/Dropzone';
 import { ConfirmModal } from '@/components/modals/ConfirmModal';
 
 import { collectionService } from '@/services/collectionService';
-import { documentService } from '@/services/documentService';
+import { documentService, BackendDocument } from '@/services/documentService';
 import { customFieldsService } from '@/services/customFieldsService';
 import { tagService } from '@/services/tagService';
+import { APP_TEXTS } from '@/app/constants/texts';
 
 const PDFViewer = dynamic(() => import('@/components/documents/PDFViewer'), {
   ssr: false,
@@ -394,7 +395,7 @@ export default function Home() {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    onDropRejected: () => setGlobalError('Formato no soportado en esta versión'),
+    onDropRejected: () => setGlobalError(APP_TEXTS.home.dropRejectedError),
     accept: { 'application/pdf': ['.pdf'] },
     multiple: true,
   });
@@ -682,8 +683,8 @@ export default function Home() {
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-slate-200">
               {selectedCollectionId
-                ? `Colección: ${collections.find((c) => c.id === selectedCollectionId)?.name || ''}`
-                : 'Biblioteca Raíz'}{' '}
+                ? `${APP_TEXTS.home.collectionTitlePrefix}${collections.find((c) => c.id === selectedCollectionId)?.name || ''}`
+                : APP_TEXTS.home.rootLibraryTitle}{' '}
               ({documents.length})
             </h3>
 
@@ -751,9 +752,9 @@ export default function Home() {
       {/* Modal de confirmación de eliminación */}
       <ConfirmModal
         isOpen={!!collectionToDelete}
-        title="Eliminar Colección"
-        message="¿Estás seguro de que quieres eliminar esta colección? Las partituras guardadas en ella no se borrarán."
-        confirmText="Eliminar"
+        title={APP_TEXTS.modals.deleteCollection.title}
+        message={APP_TEXTS.modals.deleteCollection.message}
+        confirmText={APP_TEXTS.modals.deleteCollection.confirmBtn}
         isDanger={true}
         onConfirm={handleConfirmDeleteCollection}
         onClose={() => setCollectionToDelete(null)}

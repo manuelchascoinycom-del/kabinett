@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { APP_TEXTS } from '@/app/constants/texts';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -15,10 +16,10 @@ interface ConfirmModalProps {
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   isOpen,
-  title = '¿Estás seguro?',
+  title = APP_TEXTS.common.areYouSure,
   message,
-  confirmText = 'Confirmar',
-  cancelText = 'Cancelar',
+  confirmText = APP_TEXTS.common.confirm,
+  cancelText = APP_TEXTS.common.cancel,
   isDanger = true,
   onConfirm,
   onClose,
@@ -32,7 +33,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <div className={`p-2.5 rounded-full shrink-0 ${
             isDanger ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
           }`}>
-            {isDanger ? '⚠️' : '❓'}
+            {isDanger ? APP_TEXTS.modals.confirmModal.dangerIcon : APP_TEXTS.modals.confirmModal.infoIcon}
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-200">{title}</h3>

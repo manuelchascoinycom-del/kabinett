@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_TEXTS } from '@/app/constants/texts';
 
 interface DropzoneProps {
   getRootProps: () => any;
@@ -11,6 +12,7 @@ export const Dropzone: React.FC<DropzoneProps> = ({
   getInputProps,
   isDragActive,
 }) => {
+  const T = APP_TEXTS.upload.dropzone;
   return (
     <div
       {...getRootProps()}
@@ -21,9 +23,9 @@ export const Dropzone: React.FC<DropzoneProps> = ({
       }`}
     >
       <input {...getInputProps()} />
-      <div className="text-2xl mb-1">🎼</div>
+      <div className="text-2xl mb-1">{T.sheetMusicIcon}</div>
       <p className="text-slate-400 text-xs font-medium">
-        Arrastra tus partituras aquí o haz clic para explorar
+        {T.instruction}
       </p>
     </div>
   );

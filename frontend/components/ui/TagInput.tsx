@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { APP_TEXTS } from '@/app/constants/texts';
 
 interface TagInputProps {
   tags?: string[];
@@ -13,9 +14,9 @@ export function TagInput({ tags = [], allTags = [], onChange }: TagInputProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Garantizamos que trabajamos con arrays válidos incluso si llegan valores nulos
   const currentTags = Array.isArray(tags) ? tags : [];
   const safeAllTags = Array.isArray(allTags) ? allTags : [];
+  const T = APP_TEXTS.tagInput;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -66,13 +67,13 @@ export function TagInput({ tags = [], allTags = [], onChange }: TagInputProps) {
             key={tag}
             className="bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1.5 font-medium"
           >
-            #{tag}
+            {T.tagPrefix}{tag}
             <button
               type="button"
               onClick={() => removeTag(tag)}
               className="hover:text-emerald-200 text-emerald-500 font-bold text-xs"
             >
-              ✕
+              {APP_TEXTS.common.closeIcon}
             </button>
           </span>
         ))}
@@ -85,8 +86,8 @@ export function TagInput({ tags = [], allTags = [], onChange }: TagInputProps) {
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={
             currentTags.length === 0
-              ? 'Escribe una etiqueta y pulsa Enter...'
-              : '+ Añadir...'
+              ? T.placeholderEmpty
+              : T.placeholderAdd
           }
           className="bg-transparent text-xs text-slate-200 outline-none flex-1 min-w-[140px] px-1"
         />
@@ -101,9 +102,9 @@ export function TagInput({ tags = [], allTags = [], onChange }: TagInputProps) {
               onMouseDown={() => addTag(sug)}
               className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-emerald-500/20 hover:text-emerald-300 flex items-center justify-between"
             >
-              <span>#{sug}</span>
+              <span>{T.tagPrefix}{sug}</span>
               <span className="text-[10px] text-slate-500 font-semibold">
-                Existente
+                {T.existingLabel}
               </span>
             </button>
           ))}

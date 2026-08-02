@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { APP_TEXTS } from '@/app/constants/texts';
 
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
@@ -20,13 +21,13 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
   const [scale, setScale] = useState<number>(1.2);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Nuevo estado para el Modo Atril (Pantalla completa sin distracciones)
   const [isAtrilMode, setIsAtrilMode] = useState<boolean>(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const renderTaskRef = useRef<any>(null);
+
+  const T = APP_TEXTS.pdfViewer;
 
   useEffect(() => {
     let isMounted = true;
@@ -46,8 +47,8 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
       })
       .catch((err) => {
         if (isMounted) {
-          console.error('Error al cargar el PDF:', err);
-          setError('No se pudo cargar el archivo PDF.');
+          console.error(T.loadPdfErrorLog, err);
+          setError(T.loadPdfErrorText);
           setLoading(false);
         }
       });
@@ -86,7 +87,7 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
         await renderTask.promise;
       } catch (err: any) {
         if (err.name !== 'RenderingCancelledException') {
-          console.error('Error al renderizar página:', err);
+          console.error(T.renderErrorLog, err);
         }
       }
     },
@@ -110,7 +111,6 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
     });
   };
 
-  // Atajos de teclado y salida de Modo Atril con Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === 'PageDown') nextPage();
@@ -127,57 +127,54 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [numPages, onClose, isAtrilMode]);
 
-  // Manejo de clics en los extremos de la pantalla para pasar páginas en Modo Atril
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!isAtrilMode) return;
     const width = e.currentTarget.clientWidth;
     const clickX = e.clientX;
     if (clickX < width * 0.3) {
-      prevPage(); // tercio izquierdo -> anterior
+      prevPage();
     } else if (clickX > width * 0.7) {
-      nextPage(); // tercio derecho -> siguiente
+      nextPage();
     }
   };
 
   return (
-    <div 
+    <div
       className={`fixed inset-0 z-50 bg-slate-950 flex flex-col justify-between transition-all duration-300 ${
         isAtrilMode ? 'bg-black' : 'bg-slate-950/90 backdrop-blur-md'
       }`}
       onClick={handleContainerClick}
     >
-      {/* Toolbar Superior (Se oculta de forma animada en Modo Atril) */}
       <header className={`bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shadow-lg shrink-0 transition-all duration-300 ${
         isAtrilMode ? '-translate-y-full opacity-0 pointer-events-none h-0 overflow-hidden py-0 border-none' : 'translate-y-0 opacity-100'
       }`}>
         <div className="flex items-center gap-3">
-          <span className="text-xl">🎼</span>
+          <span className="text-xl">{T.sheetMusicIcon}</span>
           <h3 className="text-sm font-bold text-slate-100 truncate max-w-xs md:max-w-md">
             {title}
           </h3>
         </div>
 
-        {/* Controles de Navegación y Zoom */}
         <div className="flex items-center gap-4 bg-slate-950 px-4 py-1.5 rounded-xl border border-slate-800">
           <div className="flex items-center gap-2">
             <button
               onClick={prevPage}
               disabled={pageNum <= 1}
               className="p-1 rounded text-slate-300 hover:bg-slate-800 disabled:opacity-30"
-              title="Página Anterior (←)"
+              title={T.prevPageTitle}
             >
-              ◀
+              {T.prevPageIcon}
             </button>
             <span className="text-xs text-slate-300 font-mono">
-              <strong className="text-emerald-400">{pageNum}</strong> / {numPages || '-'}
+              <strong className="text-emerald-400">{pageNum}</strong> {T.pageSeparator} {numPages || '-'}
             </span>
             <button
               onClick={nextPage}
               disabled={pageNum >= numPages}
               className="p-1 rounded text-slate-300 hover:bg-slate-800 disabled:opacity-30"
-              title="Página Siguiente (→)"
+              title={T.nextPageTitle}
             >
-              ▶
+              {T.nextPageIcon}
             </button>
           </div>
 
@@ -188,7 +185,7 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
               onClick={() => setScale((s) => Math.max(s - 0.15, 0.5))}
               className="px-2 py-0.5 text-xs font-bold text-slate-300 hover:bg-slate-800 rounded"
             >
-              -
+              {T.zoomOut}
             </button>
             <span className="text-xs text-slate-400 font-mono font-semibold w-12 text-center">
               {Math.round(scale * 100)}%
@@ -197,36 +194,34 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
               onClick={() => setScale((s) => Math.min(s + 0.15, 3.0))}
               className="px-2 py-0.5 text-xs font-bold text-slate-300 hover:bg-slate-800 rounded"
             >
-              +
+              {T.zoomIn}
             </button>
             <button
               onClick={fitToWidth}
               className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium rounded transition-colors"
             >
-              Ajustar Ancho
+              {T.fitWidthBtn}
             </button>
           </div>
         </div>
 
-        {/* Botones de Modo Atril y Cierre */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsAtrilMode(true)}
             className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1 shadow-md"
-            title="Activar Modo Atril (Pantalla completa)"
+            title={T.atrilTitle}
           >
-            📖 Modo Atril
+            {T.atrilIcon} {T.atrilBtn}
           </button>
           <button
             onClick={onClose}
             className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900 border border-red-500/30 text-red-400 text-xs font-semibold rounded-lg transition-all"
           >
-            ✕ Cerrar
+            {T.closeBtn}
           </button>
         </div>
       </header>
 
-      {/* Botón flotante discreto para salir del Modo Atril si el usuario lo necesita */}
       {isAtrilMode && (
         <button
           onClick={(e) => {
@@ -234,13 +229,12 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
             setIsAtrilMode(false);
           }}
           className="fixed top-4 right-4 z-50 px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 text-xs font-medium rounded-full backdrop-blur border border-slate-700 shadow-xl transition-all"
-          title="Salir de Modo Atril (Esc)"
+          title={T.exitAtrilTitle}
         >
-          ✕ Salir de Modo Atril
+          {T.exitAtrilBtn}
         </button>
       )}
 
-      {/* ÁREA DE LECTURA */}
       <main
         ref={containerRef}
         className={`flex-1 overflow-auto flex justify-center items-start transition-all duration-300 ${
@@ -250,13 +244,13 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
         {loading && (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-emerald-400">
             <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-medium">Cargando partitura...</span>
+            <span className="text-xs font-medium">{T.loadingText}</span>
           </div>
         )}
 
         {error && (
           <div className="flex flex-col items-center justify-center h-full text-red-400 gap-2">
-            <span className="text-2xl">⚠️</span>
+            <span className="text-2xl">{T.errorIcon}</span>
             <p className="text-xs font-medium">{error}</p>
           </div>
         )}

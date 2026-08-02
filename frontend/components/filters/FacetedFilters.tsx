@@ -1,12 +1,13 @@
 'use client';
 
 import React from 'react';
+import { APP_TEXTS } from '@/app/constants/texts';
 
 interface CustomField {
   id: string;
   name: string;
   field_type?: 'text' | 'number' | 'select' | 'boolean' | string;
-  type?: string; // Por retrocompatibilidad si viene mapeado así
+  type?: string;
   options?: string[];
 }
 
@@ -38,24 +39,25 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
   onChangeCustomFilter,
   onClearAllFilters,
 }) => {
+  const T = APP_TEXTS.facetedFilters;
+
   return (
     <aside className="w-64 bg-[#0b101d] border-r border-slate-800/80 p-5 shrink-0 flex flex-col justify-between overflow-y-auto">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-            <span>🎛️</span> Filtros Facetados
+            <span>{T.titleIcon}</span> {T.title}
           </h2>
           {hasActiveFilters && (
             <button onClick={onClearAllFilters} className="text-[10px] text-emerald-400 hover:underline font-semibold">
-              Limpiar todo
+              {T.clearAllBtn}
             </button>
           )}
         </div>
 
-        {/* Faceta: Compositores */}
         {Object.keys(facets.composerCounts).length > 0 && (
           <div>
-            <h3 className="text-xs font-semibold text-slate-400 mb-2">Compositores / Autores</h3>
+            <h3 className="text-xs font-semibold text-slate-400 mb-2">{T.composersSection}</h3>
             <div className="space-y-1">
               {Object.entries(facets.composerCounts).map(([composer, count]) => {
                 const isSelected = selectedComposers.includes(composer);
@@ -86,10 +88,9 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
           </div>
         )}
 
-        {/* Faceta: Etiquetas (#Tags) */}
         {Object.keys(facets.tagCounts).length > 0 && (
           <div>
-            <h3 className="text-xs font-semibold text-slate-400 mb-2">Etiquetas (#Tags)</h3>
+            <h3 className="text-xs font-semibold text-slate-400 mb-2">{T.tagsSection}</h3>
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(facets.tagCounts).map(([tag, count]) => {
                 const isSelected = selectedTags.includes(tag);
@@ -103,7 +104,7 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
                         : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:border-slate-700'
                     }`}
                   >
-                    #{tag}
+                    {APP_TEXTS.tagInput.tagPrefix}{tag}
                     <span className="text-[9px] opacity-70 font-mono">({count})</span>
                   </button>
                 );
@@ -112,10 +113,9 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
           </div>
         )}
 
-        {/* Facetas por Campos Personalizados */}
         {customFields.length > 0 && (
           <div className="pt-3 border-t border-slate-800/80">
-            <h3 className="text-xs font-semibold text-slate-400 mb-2">Campos Personalizados</h3>
+            <h3 className="text-xs font-semibold text-slate-400 mb-2">{T.customFieldsSection}</h3>
             <div className="space-y-3">
               {customFields.map((field) => {
                 const fieldType = field.field_type || field.type;
@@ -124,14 +124,14 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
                 return (
                   <div key={field.id}>
                     <label className="text-[11px] text-slate-400 block mb-1">{field.name}</label>
-                    
+
                     {fieldType === 'select' ? (
                       <select
                         value={value}
                         onChange={(e) => onChangeCustomFilter(field.name, e.target.value)}
                         className="w-full bg-slate-900/90 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-emerald-500"
                       >
-                        <option value="">Todos ({field.name})</option>
+                        <option value="">{T.selectAllCustomField.replace('{fieldName}', field.name)}</option>
                         {field.options?.map((option) => (
                           <option key={option} value={option}>
                             {option}
@@ -141,7 +141,7 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
                     ) : (
                       <input
                         type={fieldType === 'number' ? 'number' : 'text'}
-                        placeholder={`Filtrar por ${field.name}...`}
+                        placeholder={T.filterByCustomFieldPlaceholder.replace('{fieldName}', field.name)}
                         value={value}
                         onChange={(e) => onChangeCustomFilter(field.name, e.target.value)}
                         className="w-full bg-slate-900/90 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 outline-none focus:border-emerald-500"

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { APP_TEXTS } from '@/app/constants/texts';
 
 export interface Collection {
   id: string;
@@ -15,7 +16,7 @@ interface SidebarProps {
   collections: Collection[];
   onOpenNewCollectionModal: () => void;
   onOpenConfigModal: () => void;
-  onDeleteCollection?: (id: string) => void; // 👈 Nueva función opcional para borrar
+  onDeleteCollection?: (id: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -32,13 +33,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div>
         <div className="mb-6">
           <h1 className="text-xl font-extrabold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
-            Kabinett
+            {APP_TEXTS.common.appName}
           </h1>
-          <p className="text-[11px] text-slate-500">Biblioteca Virtual</p>
+          <p className="text-[11px] text-slate-500">{APP_TEXTS.common.subtitle}</p>
         </div>
 
         <nav className="space-y-4">
-          {/* Botón: Todos los documentos */}
           <button
             onClick={() => setSelectedCollectionId(null)}
             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex justify-between items-center transition-all ${
@@ -47,23 +47,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 : 'text-slate-400 hover:bg-slate-800/50'
             }`}
           >
-            <span>📚 Todos los documentos</span>
+            <span>{APP_TEXTS.sidebar.allDocumentsIcon} {APP_TEXTS.common.allDocuments}</span>
             <span className="text-[10px] bg-slate-800/80 px-2 py-0.5 rounded-full text-slate-400">
               {totalGlobalDocuments}
             </span>
           </button>
 
-          {/* Sección de Colecciones */}
           <div className="pt-3 border-t border-slate-800/60">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Colecciones
+                {APP_TEXTS.sidebar.collectionsTitle}
               </span>
               <button
                 onClick={onOpenNewCollectionModal}
                 className="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold"
               >
-                + Nueva
+                {APP_TEXTS.sidebar.newCollectionBtn}
               </button>
             </div>
 
@@ -78,21 +77,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       : 'text-slate-400 hover:bg-slate-800/40'
                   }`}
                 >
-                  <span className="truncate pr-1">📁 {col.name}</span>
+                  <span className="truncate pr-1">{APP_TEXTS.sidebar.collectionIcon} {col.name}</span>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {/* Botón Borrar (Visible únicamente al hacer HOVER sobre la fila) */}
                     {onDeleteCollection && (
                       <button
                         type="button"
                         onClick={(e) => {
-                          e.stopPropagation(); // Evita seleccionar la colección al presionar eliminar
+                          e.stopPropagation();
                           onDeleteCollection(col.id);
                         }}
                         className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 p-0.5 transition-all text-xs"
-                        title="Eliminar colección"
+                        title={APP_TEXTS.sidebar.deleteCollectionTooltip}
                       >
-                        🗑️
+                        {APP_TEXTS.sidebar.deleteIcon}
                       </button>
                     )}
 
@@ -107,13 +105,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      {/* Botón Campos Personalizados */}
       <div className="pt-4 border-t border-slate-800/60">
         <button
           onClick={onOpenConfigModal}
           className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:bg-slate-800/50 flex items-center gap-2"
         >
-          ⚙️ Campos Personalizados
+          {APP_TEXTS.sidebar.customFieldsBtn}
         </button>
       </div>
     </aside>
