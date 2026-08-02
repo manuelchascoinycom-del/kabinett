@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { APP_TEXTS } from '@/app/constants/texts';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
 }
@@ -25,7 +27,8 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const renderTaskRef = useRef<any>(null);
+  const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
+  const loadingTaskRef = useRef<pdfjsLib.PDFDocumentLoadingTask | null>(null);
 
   const T = APP_TEXTS.pdfViewer;
 
@@ -33,28 +36,52 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
     let isMounted = true;
     setLoading(true);
     setError(null);
+    setPageNum(1);
 
-    const fileUrl = `http://localhost:8000/documents/${documentId}/file`;
-    const loadingTask = pdfjsLib.getDocument({ url: fileUrl });
+    const fileUrl = `${API_BASE_URL}/documents/${documentId}/file`;
+
+    const loadingTask = pdfjsLib.getDocument({
+      url: fileUrl,
+      useSystemFonts: true,
+      enableXfa: false,
+      rangeChunkSize: 64 * 1024,
+      disableRange: false,
+      disableStream: false,
+      verbosity: 0,
+    });
+
+    loadingTaskRef.current = loadingTask;
+
+    loadingTask.onProgress = null;
 
     loadingTask.promise
       .then((pdf) => {
-        if (isMounted) {
-          setPdfDoc(pdf);
-          setNumPages(pdf.numPages);
-          setLoading(false);
+        if (!isMounted) {
+          pdf.destroy().catch(() => {});
+          return;
         }
+        setPdfDoc(pdf);
+        setNumPages(pdf.numPages);
       })
       .catch((err) => {
-        if (isMounted) {
+        if (!isMounted) return;
+        if (err?.name !== 'AbortException') {
           console.error(T.loadPdfErrorLog, err);
           setError(T.loadPdfErrorText);
-          setLoading(false);
         }
+        setLoading(false);
       });
 
     return () => {
       isMounted = false;
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch { /* noop */ }
+        renderTaskRef.current = null;
+      }
+      if (loadingTaskRef.current) {
+        try { loadingTaskRef.current.destroy(); } catch { /* noop */ }
+        loadingTaskRef.current = null;
+      }
     };
   }, [documentId]);
 
@@ -63,7 +90,8 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
       if (!pdfDoc || !canvasRef.current) return;
 
       if (renderTaskRef.current) {
-        renderTaskRef.current.cancel();
+        try { renderTaskRef.current.cancel(); } catch { /* noop */ }
+        renderTaskRef.current = null;
       }
 
       try {
@@ -74,29 +102,34 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
 
         if (!context) return;
 
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+        canvas.height = Math.floor(viewport.height);
+        canvas.width = Math.floor(viewport.width);
 
         const renderContext = {
           canvasContext: context,
           viewport: viewport,
-        };
+          canvas: canvas,
+        } as pdfjsLib.RenderParameters;
 
         const renderTask = page.render(renderContext);
         renderTaskRef.current = renderTask;
         await renderTask.promise;
+
+        setLoading(false);
       } catch (err: any) {
-        if (err.name !== 'RenderingCancelledException') {
+        if (err?.name !== 'RenderingCancelledException' && err?.message !== 'cancelled') {
           console.error(T.renderErrorLog, err);
         }
       }
     },
-    [pdfDoc]
+    [pdfDoc, T.renderErrorLog]
   );
 
   useEffect(() => {
-    renderPage(pageNum, scale);
-  }, [pageNum, scale, renderPage]);
+    if (pdfDoc) {
+      renderPage(pageNum, scale);
+    }
+  }, [pdfDoc, pageNum, scale, renderPage]);
 
   const prevPage = () => setPageNum((prev) => Math.max(prev - 1, 1));
   const nextPage = () => setPageNum((prev) => Math.min(prev + 1, numPages));
@@ -126,6 +159,23 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [numPages, onClose, isAtrilMode]);
+
+  useEffect(() => {
+    return () => {
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch { /* noop */ }
+        renderTaskRef.current = null;
+      }
+      if (pdfDoc) {
+        // En pdfjs moderno se usa cleanup() o comprobación segura:
+        if (typeof pdfDoc.cleanup === 'function') {
+          pdfDoc.cleanup();
+        } else if (typeof pdfDoc.destroy === 'function') {
+          pdfDoc.destroy().catch(() => {});
+        }
+      }
+    };
+  }, [pdfDoc]);
 
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!isAtrilMode) return;
