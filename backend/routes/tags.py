@@ -7,6 +7,7 @@ from database import get_db
 
 # Si tag_service.py está en backend/services/tag_service.py:
 from services import tag_service
+from dependencies import get_current_user
 
 router = APIRouter(prefix="/tags", tags=["tags"])
 
