@@ -5,12 +5,16 @@ from sqlalchemy import func
 from database import get_db
 import models
 from schemas.collection import CollectionCreate, CollectionResponse, AssignDocumentSchema
-from dependencies import get_current_user
+from dependencies import require_roles  # <--- Importación actualizada
 
 router = APIRouter(prefix="/collections", tags=["Collections"])
 
 @router.post("", response_model=CollectionResponse, status_code=status.HTTP_201_CREATED)
-def create_collection(payload: CollectionCreate, db: Session = Depends(get_db)):
+def create_collection(
+    payload: CollectionCreate, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))  # <--- RBAC
+):
     new_collection = models.Collection(
         name=payload.name,
         description=payload.description
@@ -27,7 +31,10 @@ def create_collection(payload: CollectionCreate, db: Session = Depends(get_db)):
     )
 
 @router.get("", response_model=list[CollectionResponse])
-def list_collections(db: Session = Depends(get_db)):
+def list_collections(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC
+):
     collections = db.query(
         models.Collection,
         func.count(models.document_collections.c.document_id).label("doc_count")
@@ -48,7 +55,8 @@ def list_collections(db: Session = Depends(get_db)):
 def assign_document_to_collection(
     collection_id: uuid.UUID, 
     payload: AssignDocumentSchema, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))  # <--- RBAC
 ):
     collection = db.query(models.Collection).filter(models.Collection.id == collection_id).first()
     if not collection:
@@ -68,7 +76,8 @@ def assign_document_to_collection(
 def remove_document_from_collection(
     collection_id: uuid.UUID, 
     document_id: uuid.UUID, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin"]))  # <--- RBAC
 ):
     """
     CRITERIO DE DESASIGNACIÓN: Elimina la relación lógica en document_collections.
@@ -89,7 +98,11 @@ def remove_document_from_collection(
     return {"message": "Documento eliminado de la colección (permanece en la biblioteca raíz)"}
 
 @router.get("/{collection_id}/documents")
-def get_documents_by_collection(collection_id: uuid.UUID, db: Session = Depends(get_db)):
+def get_documents_by_collection(
+    collection_id: uuid.UUID, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC
+):
     collection = db.query(models.Collection).filter(models.Collection.id == collection_id).first()
     if not collection:
         raise HTTPException(status_code=404, detail="Colección no encontrada")
@@ -106,7 +119,11 @@ def get_documents_by_collection(collection_id: uuid.UUID, db: Session = Depends(
     ]
     
 @router.delete("/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_collection(collection_id: str, db: Session = Depends(get_db)):
+def delete_collection(
+    collection_id: str, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin"]))  # <--- RBAC
+):
     collection = db.query(models.Collection).filter(
         models.Collection.id == collection_id
     ).first()

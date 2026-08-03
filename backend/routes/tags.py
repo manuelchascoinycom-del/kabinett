@@ -7,11 +7,14 @@ from database import get_db
 
 # Si tag_service.py está en backend/services/tag_service.py:
 from services import tag_service
-from dependencies import get_current_user
+from dependencies import require_roles  # <--- Importación actualizada
 
 router = APIRouter(prefix="/tags", tags=["tags"])
 
 @router.get("", response_model=list[str])
-def list_tags(db: Session = Depends(get_db)):
+def list_tags(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC
+):
     """Retorna todas las etiquetas del sistema para el autocompletado del frontend."""
     return tag_service.get_all_tags(db)

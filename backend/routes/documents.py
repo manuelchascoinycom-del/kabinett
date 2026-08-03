@@ -10,9 +10,8 @@ import models
 from schemas.document import ConfirmMetadataSchema
 from services.extractor import extract_text_from_first_pages
 from services.ai_service import analyze_document_metadata
-from dependencies import get_current_user
+from dependencies import require_roles  # <--- Dependencia de RBAC
 
-# 🟢 Quitamos las dependencias duplicadas del APIRouter porque ya son globales en main.py
 router = APIRouter(
     prefix="/documents",
     tags=["Documents"]
@@ -80,7 +79,8 @@ def process_pdf_in_background(document_id: str, file_path: str):
 async def upload_pdf(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))
 ):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Formato no soportado")
@@ -119,7 +119,7 @@ async def upload_pdf(
 @router.get("", status_code=status.HTTP_200_OK)
 def list_documents(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user) # Mantenemos current_user si necesitas acceder al payload del usuario autenticado
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
     docs = db.query(models.Document).all()
     return [
@@ -136,7 +136,11 @@ def list_documents(
 
 
 @router.post("/filter", status_code=status.HTTP_200_OK)
-def filter_documents(payload: FilterPayloadSchema, db: Session = Depends(get_db)):
+def filter_documents(
+    payload: FilterPayloadSchema, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC añadido
+):
     query = db.query(models.Document).filter(models.Document.status != "PENDING_REVIEW")
 
     if payload.collection_id:
@@ -204,7 +208,11 @@ def filter_documents(payload: FilterPayloadSchema, db: Session = Depends(get_db)
 
 
 @router.get("/{document_id}/status", status_code=status.HTTP_200_OK)
-def get_document_status(document_id: str, db: Session = Depends(get_db)):
+def get_document_status(
+    document_id: str, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC añadido
+):
     doc = db.query(models.Document).filter(models.Document.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
@@ -224,7 +232,8 @@ def get_document_status(document_id: str, db: Session = Depends(get_db)):
 def confirm_metadata(
     document_id: str, 
     payload: ConfirmMetadataSchema, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))  # <--- RBAC añadido
 ):
     doc = db.query(models.Document).filter(models.Document.id == document_id).first()
     if not doc:
@@ -266,7 +275,11 @@ def confirm_metadata(
 
 
 @router.get("/{document_id}/file", status_code=status.HTTP_200_OK)
-def get_document_file(document_id: str, db: Session = Depends(get_db)):
+def get_document_file(
+    document_id: str, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC añadido
+):
     doc = db.query(models.Document).filter(models.Document.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
@@ -287,7 +300,11 @@ def get_document_file(document_id: str, db: Session = Depends(get_db)):
     )
     
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_document(document_id: str, db: Session = Depends(get_db)):
+async def delete_document(
+    document_id: str, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin"]))
+):
     doc = db.query(models.Document).filter(models.Document.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
