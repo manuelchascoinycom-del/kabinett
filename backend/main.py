@@ -7,7 +7,7 @@ from database import engine
 import models
 
 # Importar routers
-from routes import documents, collections, custom_fields, tags, search
+from routes import documents, collections, custom_fields, tags, search, auth
 from dependencies import security_scheme, get_current_user
 
 load_dotenv()
@@ -16,8 +16,7 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Kabinett API",
-    version="1.0.0",
-    dependencies=[Depends(security_scheme), Depends(get_current_user)]
+    version="1.0.0"
 )
 
 origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:4200"]
@@ -30,27 +29,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 1. Incluir routers
-app.include_router(documents.router)
-app.include_router(collections.router)
-app.include_router(custom_fields.router)
-app.include_router(tags.router)
-app.include_router(search.router)
+# 1. Router PÚBLICO (Sin seguridad)
+app.include_router(auth.router)
+
+# 2. Routers PRIVADOS (Protegidos con la dependencia Bearer + User)
+protected_dependency = [Depends(security_scheme), Depends(get_current_user)]
+
+app.include_router(documents.router, dependencies=protected_dependency)
+app.include_router(collections.router, dependencies=protected_dependency)
+app.include_router(custom_fields.router, dependencies=protected_dependency)
+app.include_router(tags.router, dependencies=protected_dependency)
+app.include_router(search.router, dependencies=protected_dependency)
 
 
-# 2. Generador de OpenAPI para forzar el botón Authorize y candados en Swagger
+# 3. OpenAPI Customizado para Swagger UI
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
 
     openapi_schema = get_openapi(
         title=app.title,
-        version="1.0.0",
+        version=app.version,
         description="Kabinett API con Autenticación JWT",
         routes=app.routes,
     )
 
-    # Asegura la clave 'components' y define HTTPBearer
     components = openapi_schema.setdefault("components", {})
     components["securitySchemes"] = {
         "HTTPBearer": {
@@ -60,7 +63,7 @@ def custom_openapi():
         }
     }
 
-    # Aplica la seguridad globalmente a la documentación
+    # Aplica el esquema global a la documentación visual de Swagger
     openapi_schema["security"] = [{"HTTPBearer": []}]
 
     app.openapi_schema = openapi_schema
