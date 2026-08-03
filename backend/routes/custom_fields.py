@@ -3,12 +3,16 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models
 from schemas.custom_field import CustomFieldCreate, CustomFieldResponse
-from dependencies import get_current_user
+from dependencies import require_roles  # <--- Importación actualizada
 
 router = APIRouter(prefix="/custom-fields", tags=["Custom Fields"])
 
 @router.post("", response_model=CustomFieldResponse, status_code=status.HTTP_201_CREATED)
-def create_custom_field(payload: CustomFieldCreate, db: Session = Depends(get_db)):
+def create_custom_field(
+    payload: CustomFieldCreate, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))  # <--- RBAC
+):
     # Evitar nombres duplicados
     existing = db.query(models.CustomFieldDefinition).filter(
         models.CustomFieldDefinition.name.ilike(payload.name)
@@ -27,11 +31,18 @@ def create_custom_field(payload: CustomFieldCreate, db: Session = Depends(get_db
     return new_field
 
 @router.get("", response_model=list[CustomFieldResponse])
-def list_custom_fields(db: Session = Depends(get_db)):
+def list_custom_fields(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC
+):
     return db.query(models.CustomFieldDefinition).all()
     
 @router.delete("/{field_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_custom_field(field_id: str, db: Session = Depends(get_db)):
+def delete_custom_field(
+    field_id: str, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin"]))  # <--- RBAC
+):
     # 1. Buscar el campo en la BD
     field = db.query(models.CustomFieldDefinition).filter(
         models.CustomFieldDefinition.id == field_id
