@@ -5,6 +5,7 @@ from sqlalchemy import func
 from database import get_db
 import models
 from schemas.collection import CollectionCreate, CollectionResponse, AssignDocumentSchema
+from dependencies import get_current_user
 
 router = APIRouter(prefix="/collections", tags=["Collections"])
 

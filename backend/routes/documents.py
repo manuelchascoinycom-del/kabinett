@@ -10,8 +10,13 @@ import models
 from schemas.document import ConfirmMetadataSchema
 from services.extractor import extract_text_from_first_pages
 from services.ai_service import analyze_document_metadata
+from dependencies import get_current_user
 
-router = APIRouter(prefix="/documents", tags=["Documents"])
+# 🟢 Quitamos las dependencias duplicadas del APIRouter porque ya son globales en main.py
+router = APIRouter(
+    prefix="/documents",
+    tags=["Documents"]
+)
 
 STORAGE_DIR = "uploads"
 os.makedirs(STORAGE_DIR, exist_ok=True)
@@ -26,7 +31,6 @@ class FilterPayloadSchema(BaseModel):
 
 
 def process_pdf_in_background(document_id: str, file_path: str):
-    # Creamos una sesión de BD completamente limpia e independiente
     db = SessionLocal()
     try:
         doc = db.query(models.Document).filter(models.Document.id == document_id).first()
@@ -44,7 +48,7 @@ def process_pdf_in_background(document_id: str, file_path: str):
 
         doc.raw_text = extracted_text
 
-        # 2. IA para metadatos (protegido para que NUNCA cancele el guardado)
+        # 2. IA para metadatos
         try:
             suggested = analyze_document_metadata(extracted_text)
             doc.metadata_suggested = suggested
@@ -61,7 +65,6 @@ def process_pdf_in_background(document_id: str, file_path: str):
         db.rollback()
         print(f"🚨 [Background] Error crítico: {e}")
         try:
-            # Reintentamos guardar el estado de ERROR
             doc = db.query(models.Document).filter(models.Document.id == document_id).first()
             if doc:
                 doc.status = models.DocumentStatus.ERROR
@@ -70,7 +73,7 @@ def process_pdf_in_background(document_id: str, file_path: str):
         except Exception as rollback_err:
             print(f"🚨 [Background] Error al guardar el mensaje de error: {rollback_err}")
     finally:
-        db.close() # Siempre cerramos la sesión limpia
+        db.close()
 
 
 @router.post("/upload-pdf", status_code=status.HTTP_201_CREATED)
@@ -114,7 +117,10 @@ async def upload_pdf(
 
 
 @router.get("", status_code=status.HTTP_200_OK)
-def list_documents(db: Session = Depends(get_db)):
+def list_documents(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user) # Mantenemos current_user si necesitas acceder al payload del usuario autenticado
+):
     docs = db.query(models.Document).all()
     return [
         {
@@ -249,7 +255,6 @@ def confirm_metadata(
     db.commit()
     db.refresh(doc)
 
-    # ✅ Devolvemos la estructura completa para cumplir con Promise<BackendDocument>
     return {
         "id": str(doc.id),
         "filename": doc.filename,
@@ -287,14 +292,12 @@ async def delete_document(document_id: str, db: Session = Depends(get_db)):
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     
-    # 1. Eliminar archivo del sistema de archivos/disco si existe
     if doc.storage_path and os.path.exists(doc.storage_path):
         try:
             os.remove(doc.storage_path)
         except Exception as e:
             print(f"Error borrando archivo del disco: {e}")
 
-    # 2. Eliminar registro de la base de datos
     db.delete(doc)
     db.commit()
     return None

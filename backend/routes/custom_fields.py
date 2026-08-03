@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models
 from schemas.custom_field import CustomFieldCreate, CustomFieldResponse
+from dependencies import get_current_user
 
 router = APIRouter(prefix="/custom-fields", tags=["Custom Fields"])
 
