@@ -1,7 +1,8 @@
 // app/login/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { APP_TEXTS } from "@/app/constants/texts";
 import { authService } from "@/services/authService";
@@ -12,7 +13,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+
+  // 1. Invocación correcta de Hooks al inicio del componente
+  const { login, isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+
+  // 2. Redirección inmediata si el usuario abre /login teniendo sesión activa
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace("/");
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +42,15 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // 3. Evitar renderizar el formulario mientras redirige
+  if (isLoading || isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--app-bg)]">
+        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--app-bg)] p-4 transition-colors">
@@ -64,7 +84,7 @@ export default function LoginPage() {
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="admin@kabinett.com"
+              placeholder={T.usernamePlaceholder}
               className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-[var(--panel-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-all placeholder:text-[color:var(--text-subtle)]"
             />
           </div>
@@ -78,7 +98,7 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder={T.passwordPlaceholder}
               className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-[var(--panel-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-all placeholder:text-[color:var(--text-subtle)]"
             />
           </div>
