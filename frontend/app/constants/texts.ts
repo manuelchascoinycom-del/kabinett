@@ -192,11 +192,15 @@ export const APP_TEXTS = {
     passwordLabel: 'Contraseña',
     submitBtn: 'Entrar',
     submittingBtn: 'Iniciando sesión...',
+    usernamePlaceholder: 'admin@kabinett.com',
+    passwordPlaceholder: '••••••••',
     invalidCredentialsError: 'Usuario o contraseña incorrectos',
     invalidSessionResponseError: 'Respuesta de sesión inválida',
     genericError: 'Error al iniciar sesión',
   },
   auth: {
+    loadingSession: 'Cargando sesión...',
+    sessionExpired: 'Sesión expirada o no autorizada. Por favor, vuelve a iniciar sesión.',
     errors: {
       useAuthOutsideProvider: 'useAuth debe usarse dentro de un AuthProvider',
     },

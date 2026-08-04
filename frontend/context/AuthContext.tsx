@@ -2,7 +2,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { APP_TEXTS } from "@/app/constants/texts";
 
 interface AuthContextType {
@@ -11,11 +11,11 @@ interface AuthContextType {
   login: (token: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Función auxiliar para decodificar la carga útil del JWT sin librerías externas
 function parseJwt(token: string) {
   try {
     const base64Url = token.split(".")[1];
@@ -36,10 +36,11 @@ function parseJwt(token: string) {
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    // Al cargar la app, comprobar si hay token guardado
     const storedToken = localStorage.getItem("token");
     if (storedToken) {
       setToken(storedToken);
@@ -48,20 +49,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUserRole(decoded.role);
       }
     }
+    setIsLoading(false);
   }, []);
 
   const login = (newToken: string) => {
     localStorage.setItem("token", newToken);
+    document.cookie = `auth_token=${newToken}; path=/; max-age=86400; SameSite=Lax`;
     setToken(newToken);
+    
     const decoded = parseJwt(newToken);
     if (decoded && decoded.role) {
       setUserRole(decoded.role);
     }
-    router.push("/"); // Redirigir al dashboard tras login exitoso
+
+    // Redirigir a la URL intentada previa al login si existe
+    const searchParams = new URLSearchParams(window.location.search);
+    const callbackUrl = searchParams.get("callbackUrl");
+    router.push(callbackUrl || "/");
   };
 
   const logout = () => {
     localStorage.removeItem("token");
+    document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     setToken(null);
     setUserRole(null);
     router.push("/login");
@@ -75,6 +84,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         login,
         logout,
         isAuthenticated: !!token,
+        isLoading,
       }}
     >
       {children}
