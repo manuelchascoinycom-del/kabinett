@@ -6,10 +6,14 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
   
   const isFormData = options?.body instanceof FormData;
 
-  // Solo añadimos Content-Type: application/json si NO es FormData
-  const defaultHeaders: HeadersInit = isFormData
-    ? {}
-    : { 'Content-Type': 'application/json' };
+  // 1. Obtener token de localStorage si estamos en el cliente (navegador)
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+  // 2. Encabezados por defecto (añadimos Authorization si existe token)
+  const defaultHeaders: HeadersInit = {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
 
   const config: RequestInit = {
     ...options,
