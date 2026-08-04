@@ -2,9 +2,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { APP_TEXTS } from '@/app/constants/texts';
 import { useAuth } from '@/context/AuthContext';
-import { HasRole } from '@/components/auth/HasRole'; // Ajusta la ruta según tu proyecto
+import { HasRole } from '@/components/auth/HasRole';
 
 export interface Collection {
   id: string;
@@ -160,6 +161,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             {APP_TEXTS.sidebar.customFieldsBtn}
           </button>
+        </HasRole>
+
+        {/* Exclusivo para Administradores: Acceso a la Gestión de Usuarios */}
+        <HasRole canDelete>
+          <Link
+            href="/admin/users"
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-[color:var(--text-muted)] hover:bg-[var(--panel-hover)] hover:text-emerald-400 flex items-center gap-2 transition-colors"
+          >
+            {APP_TEXTS.sidebar.userManagementBtn}
+          </Link>
         </HasRole>
         
         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--panel-bg)] border border-[color:var(--border-color)]">
