@@ -8,10 +8,14 @@ import { APP_TEXTS } from "@/app/constants/texts";
 interface AuthContextType {
   token: string | null;
   userRole: string | null;
+  setUserRole: (role: string) => void;
   login: (token: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
+  hasRole: (roles: string | string[]) => boolean;
+  canEdit: () => boolean;
+  canDelete: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -76,15 +80,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     router.push("/login");
   };
 
+  const hasRole = (roles: string | string[]) => {
+    if (!userRole) return false;
+    const allowedRoles = Array.isArray(roles) ? roles : [roles];
+    return allowedRoles.includes(userRole);
+  };
+
+  const canEdit = () => {
+    if (isLoading) return false;
+    return hasRole(["Editor", "Admin"]);
+  };
+
+  const canDelete = () => {
+    if (isLoading) return false;
+    return hasRole("Admin");
+  };
+
   return (
     <AuthContext.Provider
       value={{
         token,
         userRole,
+        setUserRole,
         login,
         logout,
         isAuthenticated: !!token,
         isLoading,
+        hasRole,
+        canEdit,
+        canDelete,
       }}
     >
       {children}

@@ -15,12 +15,14 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { SearchBar } from '@/components/documents/SearchBar';
 import { Dropzone } from '@/components/upload/Dropzone';
 import { ConfirmModal } from '@/components/modals/ConfirmModal';
+import { HasRole } from '@/components/auth/HasRole';
 
 import { collectionService } from '@/services/collectionService';
 import { documentService, BackendDocument } from '@/services/documentService';
 import { customFieldsService } from '@/services/customFieldsService';
 import { tagService } from '@/services/tagService';
 import { APP_TEXTS } from '@/app/constants/texts';
+import { useAuth } from '@/context/AuthContext';
 
 const PDFViewer = dynamic(() => import('@/components/documents/PDFViewer'), {
   ssr: false,
@@ -78,6 +80,8 @@ interface UploadItem {
 }
 
 export default function Home() {
+  const { userRole } = useAuth();
+
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof document === 'undefined') return 'system';
     return (document.documentElement.dataset.themeMode as ThemeMode) || 'system';
@@ -256,10 +260,8 @@ export default function Home() {
         custom_filters: selectedCustomFilters,
       };
 
-      // 1. Hacemos la llamada limpia al servicio
       const data = await documentService.filter(payload);
 
-      // 2. Mapeamos los documentos devueltos por el backend para la biblioteca
       const readyDocs = data
         .filter((doc: any) => doc.status !== 'PENDING_REVIEW')
         .map((doc: any) => ({
@@ -276,7 +278,6 @@ export default function Home() {
           suggestedMetadata: doc.metadata_suggested,
         }));
 
-      // 3. Actualizamos el estado de la biblioteca de documentos
       setDocuments(readyDocs);
     } catch (e) {
       console.error('Error al aplicar filtros:', e);
@@ -316,14 +317,12 @@ export default function Home() {
     formData.append('file', fileItem.file);
 
     try {
-      // 1. Estado inicial: Subiendo archivo
       setUploadQueueItems((prev) =>
         prev.map((item) => (item.id === fileItem.id ? { ...item, status: 'uploading', progress: 30 } : item))
       );
 
       let data = await documentService.uploadPdf(formData);
 
-      // 2. Si el backend responde 'processing', consultamos /status periódicamente
       if (data.status === 'processing' || data.status === 'PROCESSING') {
         setUploadQueueItems((prev) =>
           prev.map((item) => (item.id === fileItem.id ? { ...item, progress: 60 } : item))
@@ -331,25 +330,21 @@ export default function Home() {
 
         let isCompleted = false;
         let attempts = 0;
-        const maxAttempts = 15; // Reintenta durante ~15 segundos máximo
+        const maxAttempts = 15;
 
         while (!isCompleted && attempts < maxAttempts) {
-          // Esperamos 1 segundo entre cada consulta
           await new Promise((resolve) => setTimeout(resolve, 1000));
           attempts++;
 
           const statusData = await documentService.getStatus(data.id);
-          
-          // Si el estado ya cambió (sea éxito o error)
           const currentStatus = (statusData.status || '').toUpperCase();
           if (currentStatus !== 'PROCESSING') {
-            data = statusData; // Actualizamos 'data' con el estado final
+            data = statusData;
             isCompleted = true;
           }
         }
       }
 
-      // 3. Comprobamos si el estado final del Backend fue ERROR
       const finalBackendStatus = (data.status || '').toUpperCase();
 
       if (finalBackendStatus === 'ERROR') {
@@ -365,10 +360,9 @@ export default function Home() {
               : item
           )
         );
-        return; // Detenemos la ejecución aquí
+        return;
       }
 
-      // 4. Si fue exitoso, mapeamos la respuesta final
       const uploadedItem: UploadItem = {
         ...fileItem,
         progress: 100,
@@ -407,17 +401,20 @@ export default function Home() {
     }
   };
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    setGlobalError(null);
-    const newItems: UploadItem[] = acceptedFiles.map((file) => ({
-      id: `${file.name}-${Date.now()}-${Math.random()}`,
-      file,
-      progress: 0,
-      status: 'pending',
-    }));
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      setGlobalError(null);
+      const newItems: UploadItem[] = acceptedFiles.map((file) => ({
+        id: `${file.name}-${Date.now()}-${Math.random()}`,
+        file,
+        progress: 0,
+        status: 'pending',
+      }));
 
-    setUploadQueueItems((prev) => [...newItems, ...prev]);
-  }, []);
+      setUploadQueueItems((prev) => [...newItems, ...prev]);
+    },
+    []
+  );
 
   const handleStartUpload = async () => {
     const pendingItems = uploadQueueItems.filter((item) => item.status === 'pending');
@@ -426,46 +423,27 @@ export default function Home() {
     }
   };
 
-  const removeItemFromQueue = async (id: string) => {
-    // 1. Buscamos el elemento en el estado de la cola
-    const itemToRemove = uploadQueueItems.find((item) => item.id === id);
-
-    // 2. Si ya se subió al backend (tiene backendId), llamamos al servicio para borrarlo de la BD y del disco
-    if (itemToRemove?.backendId) {
-      try {
-        await documentService.delete(itemToRemove.backendId);
-      } catch (error) {
-        console.error("Error al eliminar el documento del servidor:", error);
-        // Opcional: podrías mostrar una notificación toast o alerta aquí si falla la red
-      }
-  }
-
-  // 3. Lo quitamos del estado visual de la cola
-  setUploadQueueItems((prev) => prev.filter((item) => item.id !== id));
-};
-
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     onDropRejected: () => setGlobalError(APP_TEXTS.home.dropRejectedError),
     accept: { 'application/pdf': ['.pdf'] },
     multiple: true,
+    disabled: userRole === 'Viewer',
   });
 
   const handleConfirmMetadata = async () => {
     if (!editingItem || !editingItem.backendId) return;
 
     try {
-     const payload = {
+      const payload = {
         title: editForm.title,
         composer: editForm.composer,
         tags: editForm.tags,
         custom_metadata: editForm.custom,
       };
 
-      // Hacemos la llamada centralizada
       await documentService.confirmMetadata(editingItem.backendId, payload);
 
-      // Si no se lanza error, la operación fue exitosa
       setEditingItem(null);
       fetchDocuments();
       fetchGlobalTags();
@@ -475,11 +453,9 @@ export default function Home() {
     }
   };
 
-  // Borra de la BD + Quita de la pantalla
   const handleDiscardItem = async (queueId: string) => {
     const itemToRemove = uploadQueueItems.find((item) => item.id === queueId);
     
-    // Si llegó a subir al backend, lo borramos de la BD y disco
     if (itemToRemove?.backendId) {
       try {
         await documentService.deleteDocument(itemToRemove.backendId);
@@ -488,11 +464,9 @@ export default function Home() {
       }
     }
 
-    // Lo borramos de la lista local en pantalla
     setUploadQueueItems((prev) => prev.filter((item) => item.id !== queueId));
   };
 
-  // Guarda metadatos en la BD + Solo quita de la pantalla
   const handleConfirmQueueItem = async (
     backendId: string,
     metadata: Metadata,
@@ -507,13 +481,8 @@ export default function Home() {
         custom_metadata: customMetadata,
       };
 
-      // 1. Guardamos la confirmación en el Backend
       await documentService.confirmMetadata(backendId, payload);
-
-      // 2. SOLO quitamos la tarjeta de la cola local (¡SIN HACER DELETE HTTP!)
       setUploadQueueItems((prev) => prev.filter((item) => item.id !== queueId));
-      
-      // 3. Refrescamos la lista de la biblioteca
       fetchDocuments(); 
       applyFilters();
     } catch (error) {
@@ -522,34 +491,30 @@ export default function Home() {
   };
 
   const handleCreateCustomField = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!newFieldName.trim()) return;
+    e.preventDefault();
+    if (!newFieldName.trim()) return;
 
-      try {
-        const payload = {
-          name: newFieldName,
-          field_type: newFieldType,
-          options: newFieldType === 'select' ? newFieldOptions.split(',').map((s) => s.trim()) : [],
-        };
+    try {
+      const payload = {
+        name: newFieldName,
+        field_type: newFieldType,
+        options: newFieldType === 'select' ? newFieldOptions.split(',').map((s) => s.trim()) : [],
+      };
 
-        await customFieldsService.create(payload);
+      await customFieldsService.create(payload);
 
-        // Si tiene éxito, limpiamos el formulario y refrescamos la lista
-        setNewFieldName('');
-        setNewFieldOptions('');
-        setShowConfigModal(false);
-        fetchCustomFields();
-      } catch (e) {
-        console.error('Error al crear campo personalizado:', e);
-      }
-    };
+      setNewFieldName('');
+      setNewFieldOptions('');
+      setShowConfigModal(false);
+      fetchCustomFields();
+    } catch (e) {
+      console.error('Error al crear campo personalizado:', e);
+    }
+  };
 
   const handleDeleteCustomField = async (fieldId: string) => {
     try {
-      // 1. Llamada a la API de FastAPI a través del servicio
       await customFieldsService.delete(fieldId);
-
-      // 2. Volver a cargar la lista de campos en el estado global
       fetchCustomFields();
     } catch (error) {
       console.error('Error al eliminar campo personalizado:', error);
@@ -587,8 +552,6 @@ export default function Home() {
 
     try {
       await collectionService.create(newCollectionName);
-
-      // Acciones tras crear con éxito
       setNewCollectionName('');
       setShowNewCollectionModal(false);
       fetchCollections();
@@ -600,8 +563,6 @@ export default function Home() {
   const handleAssignToCollection = async (backendId: string, collectionId: string) => {
     try {
       await collectionService.addDocument(collectionId, backendId);
-
-      // Si la petición fue exitosa, refrescamos el estado
       fetchCollections();
       applyFilters();
     } catch (e) {
@@ -609,13 +570,10 @@ export default function Home() {
     }
   };
 
-  // Función para quitar un documento de la colección activa
   const handleRemoveFromCollection = async (docId: string, collectionId: string) => {
     try {
-      // 1. Petición DELETE centralizada
       await collectionService.removeDocument(collectionId, docId);
 
-      // 2. Actualización de estado local en React
       if (selectedCollectionId === collectionId) {
         setDocuments((prevDocs) => prevDocs.filter((doc) => doc.id !== docId));
       } else {
@@ -632,24 +590,18 @@ export default function Home() {
         );
       }
 
-      // 3. Re-obtenemos las colecciones para refrescar los contadores
       fetchCollections();
-
     } catch (error) {
-      // ⚡ 4. El error del servidor se captura AQUÍ automáticamente
       console.error('El servidor respondió con un error:', error);
     }
   };
 
-  // 1. Estado para controlar el modal de borrado
   const [collectionToDelete, setCollectionToDelete] = useState<string | null>(null);
 
-  // 2. Al pulsar el botón de la papelera en la Sidebar
   const handleDeleteCollectionClick = (collectionId: string) => {
-    setCollectionToDelete(collectionId); // Abre el modal
+    setCollectionToDelete(collectionId);
   };
 
-  // 3. Acción real de borrado (se ejecuta al pulsar "Eliminar" en el modal)
   const handleConfirmDeleteCollection = async () => {
     if (!collectionToDelete) return;
 
@@ -708,12 +660,14 @@ export default function Home() {
             isSearching={isSearching}
           />
 
-          {/* Zona de Carga (Dropzone) */}
-          <Dropzone
-            getRootProps={getRootProps}
-            getInputProps={getInputProps}
-            isDragActive={isDragActive}
-          />
+          {/* Zona de Carga (Dropzone) - Solo accesible para Editor y Admin */}
+          <HasRole canEdit>
+            <Dropzone
+              getRootProps={getRootProps}
+              getInputProps={getInputProps}
+              isDragActive={isDragActive}
+            />
+          </HasRole>
 
           {globalError && (
             <div className="mb-4 p-3 bg-[var(--danger-surface)] border border-[color:var(--danger-border)] text-[color:var(--danger)] text-xs rounded-lg">
@@ -721,16 +675,18 @@ export default function Home() {
             </div>
           )}
 
-          {/* COLA DE SUBIDA LOCAL */}
-          <UploadQueue
-            items={uploadQueueItems}
-            globalTags={globalTags || []} 
-            customFields={customFields}
-            onStartUpload={handleStartUpload}
-            onUploadSingleItem={(item) => uploadFileToServer(item)}
-            onRemoveItem={handleDiscardItem}
-            onConfirmItem={handleConfirmQueueItem}
-          />
+          {/* COLA DE SUBIDA LOCAL - Solo accesible para Editor y Admin */}
+          <HasRole canEdit>
+            <UploadQueue
+              items={uploadQueueItems}
+              globalTags={globalTags || []} 
+              customFields={customFields}
+              onStartUpload={handleStartUpload}
+              onUploadSingleItem={(item) => uploadFileToServer(item)}
+              onRemoveItem={handleDiscardItem}
+              onConfirmItem={handleConfirmQueueItem}
+            />
+          </HasRole>
 
           {/* SECCIÓN DE DOCUMENTOS */}
           <div className="space-y-4">
