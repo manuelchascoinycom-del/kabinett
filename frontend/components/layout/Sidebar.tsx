@@ -1,7 +1,9 @@
+// components/Sidebar.tsx
 'use client';
 
 import React, { useEffect, useState } from 'react';
 import { APP_TEXTS } from '@/app/constants/texts';
+import { useAuth } from '@/context/AuthContext';
 
 export interface Collection {
   id: string;
@@ -36,22 +38,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const TT = APP_TEXTS.theme;
   const [mounted, setMounted] = useState(false);
+  
+  const { userRole, logout } = useAuth(); 
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   return (
-    <aside className="w-60 bg-[var(--sidebar-bg)] border-r border-[color:var(--border-color)] p-5 flex flex-col justify-between shrink-0 transition-colors duration-200">
-      <div>
-        <div className="mb-6">
+    // 1. ASIDE: fijado a h-screen y sticky top-0
+    <aside className="w-60 h-screen sticky top-0 bg-[var(--sidebar-bg)] border-r border-[color:var(--border-color)] p-5 flex flex-col justify-between shrink-0 transition-colors duration-200">
+      
+      {/* 2. ZONA CENTRAL CON SCROLL: flex-1 overflow-y-auto */}
+      <div className="flex-1 overflow-y-auto space-y-6 pr-1 custom-scrollbar">
+        <div>
           <h1 className="text-xl font-extrabold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
             {APP_TEXTS.common.appName}
           </h1>
           <p className="text-[11px] text-[color:var(--text-muted)]">{APP_TEXTS.common.subtitle}</p>
         </div>
 
-        <div className="mb-4 space-y-2">
+        <div className="space-y-2">
           <span className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--text-muted)]">
             {TT.label}
           </span>
@@ -137,13 +144,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      <div className="pt-4 border-t border-[color:var(--border-color)]">
+      {/* 3. SECCIÓN INFERIOR FIJA: shrink-0 pt-4 mt-4 */}
+      <div className="pt-4 mt-4 border-t border-[color:var(--border-color)] space-y-2 shrink-0 bg-[var(--sidebar-bg)]">
         <button
           onClick={onOpenConfigModal}
           className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-[color:var(--text-muted)] hover:bg-[var(--panel-hover)] hover:text-[color:var(--text-secondary)] flex items-center gap-2"
         >
           {APP_TEXTS.sidebar.customFieldsBtn}
         </button>
+        
+        <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--panel-bg)] border border-[color:var(--border-color)]">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold uppercase text-[color:var(--text-muted)]">
+              {APP_TEXTS.sidebar.profile.currentRoleLabel}
+            </span>
+            <span className="text-xs font-semibold text-emerald-500 capitalize">
+              {userRole || APP_TEXTS.sidebar.profile.unknownRole}
+            </span>
+          </div>
+          <button
+            onClick={logout}
+            className="text-xs font-semibold text-[color:var(--text-muted)] hover:text-[color:var(--danger)] transition-colors"
+            title={APP_TEXTS.sidebar.profile.logoutTitle}
+          >
+            {APP_TEXTS.sidebar.profile.logoutBtn} {APP_TEXTS.sidebar.profile.logoutIcon}
+          </button>
+        </div>
       </div>
     </aside>
   );

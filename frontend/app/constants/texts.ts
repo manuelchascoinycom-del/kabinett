@@ -28,6 +28,13 @@ export const APP_TEXTS = {
     allDocumentsIcon: '📚',
     collectionIcon: '📁',
     deleteIcon: '🗑️',
+    profile: {
+      currentRoleLabel: 'Rol actual',
+      unknownRole: 'Desconocido',
+      logoutTitle: 'Cerrar sesión',
+      logoutBtn: 'Salir',
+      logoutIcon: '🚪',
+    },
   },
   modals: {
     confirmModal: {
@@ -174,5 +181,24 @@ export const APP_TEXTS = {
     light: 'Claro',
     dark: 'Oscuro',
     system: 'Sistema',
+  },
+  meta: {
+    title: 'Kabinett',
+    description: 'Biblioteca Virtual',
+  },
+  login: {
+    title: 'Iniciar Sesión',
+    usernameLabel: 'Usuario',
+    passwordLabel: 'Contraseña',
+    submitBtn: 'Entrar',
+    submittingBtn: 'Iniciando sesión...',
+    invalidCredentialsError: 'Usuario o contraseña incorrectos',
+    invalidSessionResponseError: 'Respuesta de sesión inválida',
+    genericError: 'Error al iniciar sesión',
+  },
+  auth: {
+    errors: {
+      useAuthOutsideProvider: 'useAuth debe usarse dentro de un AuthProvider',
+    },
   },
 } as const;
