@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { APP_TEXTS } from '@/app/constants/texts';
 import { useAuth } from '@/context/AuthContext';
+import { HasRole } from '@/components/auth/HasRole'; // Ajusta la ruta según tu proyecto
 
 export interface Collection {
   id: string;
@@ -38,18 +39,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const TT = APP_TEXTS.theme;
   const [mounted, setMounted] = useState(false);
-  
-  const { userRole, logout } = useAuth(); 
+  const { userRole, logout } = useAuth();
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   return (
-    // 1. ASIDE: fijado a h-screen y sticky top-0
     <aside className="w-60 h-screen sticky top-0 bg-[var(--sidebar-bg)] border-r border-[color:var(--border-color)] p-5 flex flex-col justify-between shrink-0 transition-colors duration-200">
       
-      {/* 2. ZONA CENTRAL CON SCROLL: flex-1 overflow-y-auto */}
+      {/* ZONA CENTRAL CON SCROLL */}
       <div className="flex-1 overflow-y-auto space-y-6 pr-1 custom-scrollbar">
         <div>
           <h1 className="text-xl font-extrabold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
@@ -97,12 +96,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-[11px] font-bold text-[color:var(--text-muted)] uppercase tracking-wider">
                 {APP_TEXTS.sidebar.collectionsTitle}
               </span>
-              <button
-                onClick={onOpenNewCollectionModal}
-                className="text-[11px] text-emerald-500 hover:text-emerald-400 font-bold"
-              >
-                {APP_TEXTS.sidebar.newCollectionBtn}
-              </button>
+              
+              {/* Solo usuarios con permiso de edición (Editor y Admin) ven la acción de nueva colección */}
+              <HasRole canEdit>
+                <button
+                  onClick={onOpenNewCollectionModal}
+                  className="text-[11px] text-emerald-500 hover:text-emerald-400 font-bold"
+                >
+                  {APP_TEXTS.sidebar.newCollectionBtn}
+                </button>
+              </HasRole>
             </div>
 
             <div className="space-y-1">
@@ -119,18 +122,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span className="truncate pr-1">{APP_TEXTS.sidebar.collectionIcon} {col.name}</span>
 
                   <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Solo usuarios con permiso de eliminación (Admin) pueden eliminar colecciones */}
                     {onDeleteCollection && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteCollection(col.id);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] p-0.5 transition-all text-xs"
-                        title={APP_TEXTS.sidebar.deleteCollectionTooltip}
-                      >
-                        {APP_TEXTS.sidebar.deleteIcon}
-                      </button>
+                      <HasRole canDelete>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteCollection(col.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] p-0.5 transition-all text-xs"
+                          title={APP_TEXTS.sidebar.deleteCollectionTooltip}
+                        >
+                          {APP_TEXTS.sidebar.deleteIcon}
+                        </button>
+                      </HasRole>
                     )}
 
                     <span className="text-[10px] bg-[var(--panel-bg)] border border-[color:var(--border-color)] text-[color:var(--text-muted)] px-2 py-0.5 rounded-full">
@@ -144,14 +150,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      {/* 3. SECCIÓN INFERIOR FIJA: shrink-0 pt-4 mt-4 */}
+      {/* SECCIÓN INFERIOR FIJA */}
       <div className="pt-4 mt-4 border-t border-[color:var(--border-color)] space-y-2 shrink-0 bg-[var(--sidebar-bg)]">
-        <button
-          onClick={onOpenConfigModal}
-          className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-[color:var(--text-muted)] hover:bg-[var(--panel-hover)] hover:text-[color:var(--text-secondary)] flex items-center gap-2"
-        >
-          {APP_TEXTS.sidebar.customFieldsBtn}
-        </button>
+        {/* Solo usuarios con permiso de edición (Editor y Admin) pueden acceder a Campos Personalizados */}
+        <HasRole canEdit>
+          <button
+            onClick={onOpenConfigModal}
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-[color:var(--text-muted)] hover:bg-[var(--panel-hover)] hover:text-[color:var(--text-secondary)] flex items-center gap-2"
+          >
+            {APP_TEXTS.sidebar.customFieldsBtn}
+          </button>
+        </HasRole>
         
         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--panel-bg)] border border-[color:var(--border-color)]">
           <div className="flex flex-col">

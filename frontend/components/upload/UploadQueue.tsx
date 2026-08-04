@@ -1,8 +1,10 @@
+// components/upload/UploadQueue.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { TagInput } from '@/components/ui/TagInput';
 import { APP_TEXTS } from '@/app/constants/texts';
+import { HasRole } from '@/components/auth/HasRole';
 
 interface Metadata {
   title: string;
@@ -117,12 +119,14 @@ const UploadQueueItem: React.FC<{
           )}
 
           {item.status === 'pending' && (
-            <button
-              onClick={() => onUploadSingleItem(item)}
-              className="px-2.5 py-1 bg-[var(--panel-bg)] hover:bg-[var(--panel-hover)] text-[color:var(--accent)] border border-[color:var(--accent-border)] text-[11px] font-semibold rounded-md transition-colors"
-            >
-              {T.uploadSingleIcon} {T.uploadSingleBtn}
-            </button>
+            <HasRole allowedRoles={['Editor', 'Admin']}>
+              <button
+                onClick={() => onUploadSingleItem(item)}
+                className="px-2.5 py-1 bg-[var(--panel-bg)] hover:bg-[var(--panel-hover)] text-[color:var(--accent)] border border-[color:var(--accent-border)] text-[11px] font-semibold rounded-md transition-colors"
+              >
+                {T.uploadSingleIcon} {T.uploadSingleBtn}
+              </button>
+            </HasRole>
           )}
 
           <button
@@ -157,94 +161,96 @@ const UploadQueueItem: React.FC<{
       )}
 
       {item.status === 'success' && item.backendId && (
-        <div className="pt-2 border-t border-[color:var(--border-color)] space-y-2.5 bg-[var(--panel-bg)] p-3 rounded-lg border border-[color:var(--accent-border)]">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-[color:var(--accent)] flex items-center gap-1">
-              {M.icon} {M.title}
-            </span>
-            <span className="text-[10px] text-[color:var(--text-muted)] italic">{M.hint}</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.titleLabel}</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={M.titlePlaceholder}
-                className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
-              />
+        <HasRole allowedRoles={['Editor', 'Admin']}>
+          <div className="pt-2 border-t border-[color:var(--border-color)] space-y-2.5 bg-[var(--panel-bg)] p-3 rounded-lg border border-[color:var(--accent-border)]">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-[color:var(--accent)] flex items-center gap-1">
+                {M.icon} {M.title}
+              </span>
+              <span className="text-[10px] text-[color:var(--text-muted)] italic">{M.hint}</span>
             </div>
-            <div>
-              <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.composerLabel}</label>
-              <input
-                type="text"
-                value={composer}
-                onChange={(e) => setComposer(e.target.value)}
-                placeholder={M.composerPlaceholder}
-                className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
 
-          <div>
-            <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.tagsLabel}</label>
-            <TagInput tags={tags} allTags={globalTags} onChange={setTags} />
-          </div>
-
-          {customFields.length > 0 && (
-            <div className="pt-2 border-t border-[color:var(--border-color)]">
-              <span className="text-[10px] font-bold text-[color:var(--text-muted)] block mb-2">{M.customFieldsLabel}</span>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {customFields.map((field) => {
-                  const fieldType = field.field_type || field.type;
-                  const value = customMetadata[field.name] || '';
-
-                  return (
-                    <div key={field.id}>
-                      <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">
-                        {field.name}
-                      </label>
-
-                      {fieldType === 'select' ? (
-                        <select
-                          value={value}
-                          onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
-                          className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
-                        >
-                          <option value="">{APP_TEXTS.common.selectPlaceholder}</option>
-                          {field.options?.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type={fieldType === 'number' ? 'number' : 'text'}
-                          value={value}
-                          onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
-                          placeholder={APP_TEXTS.common.customFieldExample.replace('{fieldName}', field.name)}
-                          className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
-                        />
-                      )}
-                    </div>
-                  );
-                })}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.titleLabel}</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={M.titlePlaceholder}
+                  className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.composerLabel}</label>
+                <input
+                  type="text"
+                  value={composer}
+                  onChange={(e) => setComposer(e.target.value)}
+                  placeholder={M.composerPlaceholder}
+                  className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                />
               </div>
             </div>
-          )}
 
-          <div className="flex justify-end pt-1">
-            <button
-              onClick={handleConfirm}
-              className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition-colors shadow"
-            >
-              {M.confirmBtn}
-            </button>
+            <div>
+              <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">{M.tagsLabel}</label>
+              <TagInput tags={tags} allTags={globalTags} onChange={setTags} />
+            </div>
+
+            {customFields.length > 0 && (
+              <div className="pt-2 border-t border-[color:var(--border-color)]">
+                <span className="text-[10px] font-bold text-[color:var(--text-muted)] block mb-2">{M.customFieldsLabel}</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {customFields.map((field) => {
+                    const fieldType = field.field_type || field.type;
+                    const value = customMetadata[field.name] || '';
+
+                    return (
+                      <div key={field.id}>
+                        <label className="text-[10px] text-[color:var(--text-muted)] font-medium block mb-1">
+                          {field.name}
+                        </label>
+
+                        {fieldType === 'select' ? (
+                          <select
+                            value={value}
+                            onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
+                            className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                          >
+                            <option value="">{APP_TEXTS.common.selectPlaceholder}</option>
+                            {field.options?.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={fieldType === 'number' ? 'number' : 'text'}
+                            value={value}
+                            onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
+                            placeholder={APP_TEXTS.common.customFieldExample.replace('{fieldName}', field.name)}
+                            className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded px-2.5 py-1.5 outline-none focus:border-emerald-500"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={handleConfirm}
+                className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition-colors shadow"
+              >
+                {M.confirmBtn}
+              </button>
+            </div>
           </div>
-        </div>
+        </HasRole>
       )}
     </div>
   );
@@ -270,12 +276,14 @@ export const UploadQueue: React.FC<UploadQueueProps> = ({
           <span>{T.containerIcon}</span> {T.containerTitle.replace('{count}', String(items.length))}
         </h4>
         {items.some((i) => i.status === 'pending') && (
-          <button
-            onClick={onStartUpload}
-            className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-md"
-          >
-            {T.uploadAllIcon} {APP_TEXTS.common.uploadAll}
-          </button>
+          <HasRole allowedRoles={['Editor', 'Admin']}>
+            <button
+              onClick={onStartUpload}
+              className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-md"
+            >
+              {T.uploadAllIcon} {APP_TEXTS.common.uploadAll}
+            </button>
+          </HasRole>
         )}
       </div>
 

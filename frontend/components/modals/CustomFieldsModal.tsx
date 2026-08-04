@@ -1,7 +1,9 @@
+// components/modals/CustomFieldsModal.tsx
 'use client';
 
 import React from 'react';
 import { APP_TEXTS } from '@/app/constants/texts';
+import { HasRole } from '@/components/auth/HasRole';
 
 export interface CustomFieldItem {
   id: string;
@@ -70,15 +72,18 @@ export const CustomFieldsModal: React.FC<CustomFieldsModalProps> = ({
                       <span className="ml-2 text-[10px] text-[color:var(--text-subtle)] capitalize">({type})</span>
                     </div>
 
+                    {/* Eliminar campo: Solo Admin */}
                     {onDeleteField && (
-                      <button
-                        type="button"
-                        onClick={() => onDeleteField(field.id)}
-                        className="text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] p-1 transition-colors text-xs shrink-0"
-                        title={T.deleteFieldTooltip}
-                      >
-                        {APP_TEXTS.sidebar.deleteIcon}
-                      </button>
+                      <HasRole canDelete>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteField(field.id)}
+                          className="text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] p-1 transition-colors text-xs shrink-0"
+                          title={T.deleteFieldTooltip}
+                        >
+                          {APP_TEXTS.sidebar.deleteIcon}
+                        </button>
+                      </HasRole>
                     )}
                   </div>
                 );
@@ -87,65 +92,86 @@ export const CustomFieldsModal: React.FC<CustomFieldsModalProps> = ({
           </div>
         )}
 
-        <form onSubmit={onSubmit} className="space-y-4 pt-2 border-t border-[color:var(--border-color)]">
-          <label className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
-            {T.createNewFieldLabel}
-          </label>
+        {/* Crear campo: Solo Admin */}
+        <HasRole 
+          allowedRoles="Admin" 
+          fallback={
+            <div className="pt-3 border-t border-[color:var(--border-color)] text-center space-y-3">
+              <p className="text-xs text-[color:var(--text-muted)]">
+                Solo los usuarios con rol de **Administrador** pueden agregar campos personalizados.
+              </p>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 bg-[var(--panel-bg-muted)] text-[color:var(--text-secondary)] text-xs rounded-lg font-medium hover:bg-[var(--panel-hover)] border border-[color:var(--border-color)] transition-colors"
+                >
+                  {T.closeBtn}
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <form onSubmit={onSubmit} className="space-y-4 pt-2 border-t border-[color:var(--border-color)]">
+            <label className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
+              {T.createNewFieldLabel}
+            </label>
 
-          <div>
-            <label className="text-xs text-[color:var(--text-muted)] block mb-1">{T.fieldNameLabel}</label>
-            <input
-              type="text"
-              placeholder={T.fieldNamePlaceholder}
-              value={newFieldName}
-              onChange={(e) => setNewFieldName(e.target.value)}
-              className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs text-[color:var(--text-muted)] block mb-1">{T.fieldTypeLabel}</label>
-            <select
-              value={newFieldType}
-              onChange={(e) => setNewFieldType(e.target.value as any)}
-              className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
-            >
-              <option value="text">{T.fieldTypeOptions.text}</option>
-              <option value="number">{T.fieldTypeOptions.number}</option>
-              <option value="select">{T.fieldTypeOptions.select}</option>
-              <option value="boolean">{T.fieldTypeOptions.boolean}</option>
-            </select>
-          </div>
-
-          {newFieldType === 'select' && (
             <div>
-              <label className="text-xs text-[color:var(--text-muted)] block mb-1">{T.optionsLabel}</label>
+              <label className="text-xs text-[color:var(--text-muted)] block mb-1">{T.fieldNameLabel}</label>
               <input
                 type="text"
-                placeholder={T.optionsPlaceholder}
-                value={newFieldOptions}
-                onChange={(e) => setNewFieldOptions(e.target.value)}
+                placeholder={T.fieldNamePlaceholder}
+                value={newFieldName}
+                onChange={(e) => setNewFieldName(e.target.value)}
                 className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
               />
             </div>
-          )}
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-[color:var(--border-color)]">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-[var(--panel-bg-muted)] text-[color:var(--text-secondary)] text-xs rounded-lg font-medium hover:bg-[var(--panel-hover)] border border-[color:var(--border-color)] transition-colors"
-            >
-              {T.closeBtn}
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-lg transition-colors"
-            >
-              {T.saveFieldBtn}
-            </button>
-          </div>
-        </form>
+            <div>
+              <label className="text-xs text-[color:var(--text-muted)] block mb-1">{T.fieldTypeLabel}</label>
+              <select
+                value={newFieldType}
+                onChange={(e) => setNewFieldType(e.target.value as any)}
+                className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
+              >
+                <option value="text">{T.fieldTypeOptions.text}</option>
+                <option value="number">{T.fieldTypeOptions.number}</option>
+                <option value="select">{T.fieldTypeOptions.select}</option>
+                <option value="boolean">{T.fieldTypeOptions.boolean}</option>
+              </select>
+            </div>
+
+            {newFieldType === 'select' && (
+              <div>
+                <label className="text-xs text-[color:var(--text-muted)] block mb-1">{T.optionsLabel}</label>
+                <input
+                  type="text"
+                  placeholder={T.optionsPlaceholder}
+                  value={newFieldOptions}
+                  onChange={(e) => setNewFieldOptions(e.target.value)}
+                  className="app-input w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500"
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[color:var(--border-color)]">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 bg-[var(--panel-bg-muted)] text-[color:var(--text-secondary)] text-xs rounded-lg font-medium hover:bg-[var(--panel-hover)] border border-[color:var(--border-color)] transition-colors"
+              >
+                {T.closeBtn}
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-lg transition-colors"
+              >
+                {T.saveFieldBtn}
+              </button>
+            </div>
+          </form>
+        </HasRole>
       </div>
     </div>
   );

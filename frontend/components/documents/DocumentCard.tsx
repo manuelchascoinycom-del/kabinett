@@ -1,7 +1,9 @@
+// components/documents/DocumentCard.tsx
 'use client';
 
 import React from 'react';
 import { APP_TEXTS } from '@/app/constants/texts';
+import { HasRole } from '@/components/auth/HasRole'; // Ajusta la ruta a tu estructura
 
 interface DocumentCardProps {
   item: {
@@ -80,16 +82,21 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       </div>
 
       <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+        {/* Quitar de colección: Requiere permiso de edición */}
         {selectedCollectionId && onRemoveFromCollection && (
-          <button
-            type="button"
-            onClick={() => onRemoveFromCollection(item.id, selectedCollectionId)}
-            className="px-2.5 py-1.5 bg-[var(--danger-soft)] hover:bg-[var(--danger-surface)] text-[color:var(--danger)] border border-[color:var(--danger-border)] text-xs rounded-lg transition-colors flex items-center gap-1 font-semibold"
-            title={T.removeFromCollectionTooltip}
-          >
-            {T.removeFromCollectionBtn}
-          </button>
+          <HasRole canDelete>
+            <button
+              type="button"
+              onClick={() => onRemoveFromCollection(item.id, selectedCollectionId)}
+              className="px-2.5 py-1.5 bg-[var(--danger-soft)] hover:bg-[var(--danger-surface)] text-[color:var(--danger)] border border-[color:var(--danger-border)] text-xs rounded-lg transition-colors flex items-center gap-1 font-semibold"
+              title={T.removeFromCollectionTooltip}
+            >
+              {T.removeFromCollectionBtn}
+            </button>
+          </HasRole>
         )}
+
+        {/* Ver PDF: Visible para todos los roles */}
         {item.backendId && (
           <button
             onClick={() => onViewPdf(item.backendId!, title)}
@@ -100,31 +107,37 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           </button>
         )}
 
-        <button
-          onClick={() => onEdit(item)}
-          className="px-3 py-1.5 bg-[var(--panel-bg-muted)] hover:bg-[var(--panel-hover)] text-[color:var(--text-secondary)] text-xs font-medium rounded-lg transition-colors border border-[color:var(--border-color)]"
-        >
-          {T.editBtn}
-        </button>
-
-        {collections.length > 0 && item.backendId && (
-          <select
-            onChange={(e) => {
-              if (e.target.value) {
-                onAssignCollection(item.backendId!, e.target.value);
-                e.target.value = '';
-              }
-            }}
-            defaultValue=""
-            className="bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-lg px-2 py-1.5 outline-none hover:border-[color:var(--border-hover)]"
+        {/* Editar metadatos: Requiere permiso de edición */}
+        <HasRole canEdit>
+          <button
+            onClick={() => onEdit(item)}
+            className="px-3 py-1.5 bg-[var(--panel-bg-muted)] hover:bg-[var(--panel-hover)] text-[color:var(--text-secondary)] text-xs font-medium rounded-lg transition-colors border border-[color:var(--border-color)]"
           >
-            <option value="" disabled>{T.moveToOption}</option>
-            {collections.map((col) => (
-              <option key={col.id} value={col.id}>
-                {col.name}
-              </option>
-            ))}
-          </select>
+            {T.editBtn}
+          </button>
+        </HasRole>
+
+        {/* Asignar colección: Requiere permiso de edición */}
+        {collections.length > 0 && item.backendId && (
+          <HasRole canEdit>
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  onAssignCollection(item.backendId!, e.target.value);
+                  e.target.value = '';
+                }
+              }}
+              defaultValue=""
+              className="bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-lg px-2 py-1.5 outline-none hover:border-[color:var(--border-hover)]"
+            >
+              <option value="" disabled>{T.moveToOption}</option>
+              {collections.map((col) => (
+                <option key={col.id} value={col.id}>
+                  {col.name}
+                </option>
+              ))}
+            </select>
+          </HasRole>
         )}
       </div>
     </div>

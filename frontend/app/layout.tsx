@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from './providers';
 import { APP_TEXTS } from "@/app/constants/texts";
+import { DevRoleSwitcher } from "@/components/auth/DevRoleSwitcher";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,7 +49,11 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body className="min-h-full flex flex-col bg-[var(--app-bg)] text-[color:var(--text-primary)] transition-colors duration-200">
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          {/* Widget flotante de simulación de rol solo para desarrollo */}
+          {process.env.NODE_ENV === 'development' && <DevRoleSwitcher />}
+        </Providers>
       </body>
     </html>
   );
