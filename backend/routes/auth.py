@@ -1,15 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from database import get_db
-from security import verify_password, create_access_token
-import models
 
-router = APIRouter(
-    prefix="/auth",
-    tags=["Auth"]
-)
+from database import get_db
+import models
+from security import create_access_token, verify_password
+
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 class LoginRequest(BaseModel):
@@ -26,27 +23,26 @@ class TokenResponse(BaseModel):
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     """
     Endpoint para autenticación con JSON payload {"username": "...", "password": "..."}.
-    Verifica el hash de la contraseña y genera el JWT con los claims sub y role.
+    Consulta directamente a la base de datos y genera el JWT con id de usuario y rol.
     """
-    # Buscar usuario por email/username en la BD
-    user = db.query(models.User).filter(models.User.email == payload.username).first() if hasattr(models, "User") else None
+    # 1. Buscar usuario por email en la BD
+    user = db.query(models.User).filter(models.User.email == payload.username).first()
 
-    # Si aún no tienes modelo User en BD, puedes usar esta validación de contingencia/dev
     if not user:
-        # Ejemplo para pruebas locales si aún no hay tabla de usuarios cargada
-        if payload.username == "admin@kabinett.com" and payload.password == "admin123":
-            access_token = create_access_token(
-                data={"sub": payload.username, "role": "Admin"}
-            )
-            return {"access_token": access_token, "token_type": "bearer"}
-        
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Validación real con hash de contraseña
+    # 2. Verificar que la cuenta no esté desactivada
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="La cuenta de usuario se encuentra desactivada",
+        )
+
+    # 3. Validar hash de contraseña
     if not verify_password(payload.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -54,9 +50,12 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Generación de token firmado
+    # 4. Obtener valor del rol (soporta si es enum o string)
+    role_value = user.role.value if hasattr(user.role, "value") else str(user.role)
+
+    # 5. Generar JWT firmado
     access_token = create_access_token(
-        data={"sub": str(user.id), "role": user.role}
+        data={"sub": str(user.id), "role": role_value}
     )
 
     return {"access_token": access_token, "token_type": "bearer"}

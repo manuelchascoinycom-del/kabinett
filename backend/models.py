@@ -36,6 +36,12 @@ class CustomFieldType(str, Enum):
     BOOLEAN = "boolean"
 
 
+class UserRole(str, Enum):
+    ADMIN = "Admin"
+    EDITOR = "Editor"
+    VIEWER = "Viewer"
+
+
 document_collections = Table(
     "document_collections",
     Base.metadata,
@@ -90,7 +96,7 @@ class Document(Base):
     metadata_suggested: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     metadata_confirmed: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     custom_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)
-    
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -154,4 +160,31 @@ class CustomFieldDefinition(Base):
     options: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[UserRole] = mapped_column(
+        SAEnum(UserRole, native_enum=False, length=20),
+        nullable=False,
+        default=UserRole.VIEWER,
+    )
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
