@@ -30,6 +30,8 @@ export const APP_TEXTS = {
     collectionIcon: '📁',
     deleteIcon: '🗑️',
     profile: {
+      myProfileBtn: 'Mi Perfil',
+      myProfileIcon: '👤',
       currentRoleLabel: 'Rol actual',
       unknownRole: 'Desconocido',
       logoutTitle: 'Cerrar sesión',
@@ -263,6 +265,38 @@ export const APP_TEXTS = {
       defaultTitle: 'Acción No Permitida',
       subtitle: 'Atención',
       understandBtn: 'Entendido',
+    },
+  },
+  // En app/constants/texts.ts -> agregar dentro de APP_TEXTS:
+  profile: {
+    title: 'Mi Perfil',
+    subtitle: 'Consulta tus datos personales y gestiona la seguridad de tu cuenta.',
+    userCard: {
+      title: 'Datos de la Cuenta',
+      nameLabel: 'Nombre Completo',
+      emailLabel: 'Correo Electrónico',
+      roleLabel: 'Rol Asignado',
+      statusLabel: 'Estado de Cuenta',
+      statusActive: 'Activa',
+      statusInactive: 'Inactiva',
+    },
+    changePasswordCard: {
+      title: 'Cambiar Contraseña',
+      subtitle: 'La nueva contraseña debe tener al menos 8 caracteres.',
+      currentPasswordLabel: 'Contraseña Actual',
+      currentPasswordPlaceholder: '••••••••',
+      newPasswordLabel: 'Nueva Contraseña',
+      newPasswordPlaceholder: '••••••••',
+      confirmPasswordLabel: 'Confirmar Nueva Contraseña',
+      confirmPasswordPlaceholder: '••••••••',
+      saveBtn: 'Actualizar Contraseña',
+      savingBtn: 'Actualizando...',
+      errors: {
+        passwordsDoNotMatch: 'Las contraseñas no coinciden.',
+        minLength: 'La nueva contraseña debe tener al menos 8 caracteres.',
+        defaultError: 'Error al cambiar la contraseña.',
+      },
+      successMessage: 'Contraseña actualizada exitosamente.',
     },
   },
 } as const;

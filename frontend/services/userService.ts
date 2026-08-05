@@ -31,6 +31,20 @@ export interface UpdateUserPayload {
   password?: string;
 }
 
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  role: 'Admin' | 'Editor' | 'Viewer';
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ChangePasswordPayload {
+  current_password: string;
+  new_password: string;
+}
+
 export const userService = {
   getUsers: async (params?: { page?: number; limit?: number; search?: string; role?: string; is_active?: boolean }): Promise<UserListResponse> => {
     const query = new URLSearchParams();
@@ -62,6 +76,18 @@ export const userService = {
     return fetchApi<User>(`/admin/users/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ is_active: isActive }),
+    });
+  },
+
+  // Añadir dentro de export const userService = { ... }
+  getCurrentUserProfile: async (): Promise<UserProfile> => {
+    return fetchApi<UserProfile>('/auth/me');
+  },
+
+  changePassword: async (payload: ChangePasswordPayload): Promise<{ detail: string }> => {
+    return fetchApi<{ detail: string }>('/auth/change-password', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     });
   },
 };
