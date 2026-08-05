@@ -45,3 +45,21 @@ class UserListResponse(BaseModel):
     total: int
     page: int
     limit: int
+    
+    # Agregar en schemas/user.py
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8)
+
+
+class UserProfileResponse(BaseModel):
+    id: uuid.UUID
+    email: EmailStr
+    name: str
+    role: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

@@ -2,9 +2,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { APP_TEXTS } from '@/app/constants/texts';
 import { useAuth } from '@/context/AuthContext';
-import { HasRole } from '@/components/auth/HasRole'; // Ajusta la ruta según tu proyecto
+import { HasRole } from '@/components/auth/HasRole';
 
 export interface Collection {
   id: string;
@@ -152,6 +153,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* SECCIÓN INFERIOR FIJA */}
       <div className="pt-4 mt-4 border-t border-[color:var(--border-color)] space-y-2 shrink-0 bg-[var(--sidebar-bg)]">
+        
+        {/* Enlace al Perfil de Usuario */}
+        <Link
+          href="/profile"
+          className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-[color:var(--text-muted)] hover:bg-[var(--panel-hover)] hover:text-[color:var(--text-secondary)] flex items-center gap-2 transition-colors"
+        >
+          <span>{APP_TEXTS.sidebar.profile.myProfileIcon}</span>
+          <span>{APP_TEXTS.sidebar.profile.myProfileBtn}</span>
+        </Link>
+
+        {/* Solo el Administrador puede ver la Gestión de Usuarios */}
+        <HasRole canDelete>
+          <Link
+            href="/admin/users"
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-[color:var(--text-muted)] hover:bg-[var(--panel-hover)] hover:text-[color:var(--text-secondary)] flex items-center gap-2 transition-colors"
+          >
+            <span>{APP_TEXTS.sidebar.userManagementBtn}</span>
+          </Link>
+        </HasRole>
+
         {/* Solo usuarios con permiso de edición (Editor y Admin) pueden acceder a Campos Personalizados */}
         <HasRole canEdit>
           <button
