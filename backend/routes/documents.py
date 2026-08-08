@@ -22,11 +22,16 @@ os.makedirs(STORAGE_DIR, exist_ok=True)
 
 
 class FilterPayloadSchema(BaseModel):
-    query: Optional[str] = ""
+    query: Optional[str] = None
+    search: Optional[str] = None
     collection_id: Optional[str] = None
-    composers: Optional[List[str]] = []
-    tags: Optional[List[str]] = []
-    custom_filters: Optional[Dict[str, Any]] = {}
+    collection_ids: Optional[List[str]] = None
+    composers: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+    custom_filters: Optional[Dict[str, str]] = None
+    custom_fields: Optional[Dict[str, str]] = None  # <-- Añadido aquí
+    page: int = 1
+    limit: int = 20
 
 
 def process_pdf_in_background(document_id: str, file_path: str):
@@ -118,11 +123,18 @@ async def upload_pdf(
 
 @router.get("", status_code=status.HTTP_200_OK)
 def list_documents(
+    page: int = 1,
+    limit: int = 20,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
-    docs = db.query(models.Document).all()
-    return [
+    offset = (page - 1) * limit
+    
+    query = db.query(models.Document)
+    total_docs = query.count()
+    docs = query.offset(offset).limit(limit).all()
+    
+    items = [
         {
             "id": str(doc.id),
             "filename": doc.filename,
@@ -133,6 +145,11 @@ def list_documents(
         }
         for doc in docs
     ]
+    
+    return {
+        "data": items,
+        "total": total_docs
+    }
 
 
 @router.post("/filter", status_code=status.HTTP_200_OK)
@@ -143,68 +160,79 @@ def filter_documents(
 ):
     query = db.query(models.Document).filter(models.Document.status != "PENDING_REVIEW")
 
-    if payload.collection_id:
-        collection = db.query(models.Collection).filter(models.Collection.id == payload.collection_id).first()
-        if collection:
-            doc_ids = [doc.id for doc in collection.documents]
-            query = query.filter(models.Document.id.in_(doc_ids))
-        else:
-            return []
+    # 1. Filtrado por Colección (soportando tanto collection_id como collection_ids)
+    col_id = payload.collection_id
+    col_ids = getattr(payload, 'collection_ids', None) or (
+        [payload.collection_id] if getattr(payload, 'collection_id', None) else []
+    )
+    if col_id and col_id not in col_ids:
+        col_ids.append(col_id)
 
-    docs = query.all()
-    filtered_results = []
-    q_lower = payload.query.lower().strip() if payload.query else ""
+    if col_ids:
+        # Buscamos documentos que pertenezcan a cualquiera de las colecciones indicadas mediante la tabla intermedia
+        query = query.join(models.Document.collections).filter(models.Collection.id.in_(col_ids))
 
-    for doc in docs:
-        meta = doc.metadata_confirmed or doc.metadata_suggested or {}
-        title = (meta.get("title") or "").lower()
-        composer = (meta.get("composer") or "").lower()
-        doc_tags = [t.lower() for t in (meta.get("tags") or [])]
-        filename = (doc.filename or "").lower()
-        raw_text = (doc.raw_text or "").lower()
+    # 2. Filtrado de texto global (query o search)
+    search_text = getattr(payload, 'search', None) or getattr(payload, 'query', None)
+    if search_text and search_text.strip():
+        q_lower = f"%{search_text.lower().strip()}%"
+        query = query.filter(
+            (models.Document.filename.ilike(q_lower)) |
+            (models.Document.raw_text.ilike(q_lower)) |
+            (models.Document.metadata_confirmed['title'].as_string().ilike(q_lower)) |
+            (models.Document.metadata_suggested['title'].as_string().ilike(q_lower)) |
+            (models.Document.metadata_confirmed['composer'].as_string().ilike(q_lower)) |
+            (models.Document.metadata_suggested['composer'].as_string().ilike(q_lower))
+        )
 
-        if q_lower:
-            text_match = (
-                q_lower in title or
-                q_lower in composer or
-                q_lower in filename or
-                q_lower in raw_text or
-                any(q_lower in tag for tag in doc_tags)
-            )
-            if not text_match:
-                continue
+    # 3. Filtrado por Compositores
+    if payload.composers and len(payload.composers) > 0:
+        composer_filters = []
+        for comp in payload.composers:
+            composer_filters.append(models.Document.metadata_confirmed['composer'].as_string() == comp)
+            composer_filters.append(models.Document.metadata_suggested['composer'].as_string() == comp)
+        from sqlalchemy import or_
+        query = query.filter(or_(*composer_filters))
 
-        if payload.composers and len(payload.composers) > 0:
-            doc_composer = meta.get("composer") or ""
-            if doc_composer not in payload.composers:
-                continue
+    # 4. Filtrado por Etiquetas (Tags)
+    if payload.tags and len(payload.tags) > 0:
+        for tag_name in payload.tags:
+            query = query.join(models.Document.tags).filter(models.Tag.name.ilike(tag_name))
 
-        if payload.tags and len(payload.tags) > 0:
-            if not set(payload.tags).issubset(set(meta.get("tags") or [])):
-                continue
+    # 5. Filtrado por Campos Personalizados (custom_filters o custom_fields)
+    custom_f = getattr(payload, 'custom_fields', None) or getattr(payload, 'custom_filters', {})
+    if custom_f:
+        for field_key, expected_val in custom_f.items():
+            if expected_val is not None and str(expected_val).strip() != "":
+                # Comparamos dentro del campo JSONB custom_metadata de PostgreSQL
+                query = query.filter(models.Document.custom_metadata[field_key].as_string() == str(expected_val))
 
-        if payload.custom_filters:
-            doc_custom = doc.custom_metadata or {}
-            custom_match = True
-            for field_key, expected_val in payload.custom_filters.items():
-                if expected_val:
-                    actual_val = doc_custom.get(field_key)
-                    if str(actual_val).lower().strip() != str(expected_val).lower().strip():
-                        custom_match = False
-                        break
-            if not custom_match:
-                continue
+    # Obtener el total exacto de resultados antes de paginar
+    total_results = query.count()
 
-        filtered_results.append({
+    # 6. Paginación en servidor con offset y limit
+    page = payload.page if payload.page and payload.page > 0 else 1
+    limit = payload.limit if payload.limit and payload.limit > 0 else 20
+    offset = (page - 1) * limit
+
+    paginated_docs = query.offset(offset).limit(limit).all()
+
+    formatted_results = [
+        {
             "id": str(doc.id),
             "filename": doc.filename,
             "status": doc.status.value if hasattr(doc.status, "value") else str(doc.status),
             "metadata_confirmed": doc.metadata_confirmed,
             "metadata_suggested": doc.metadata_suggested,
             "custom_metadata": doc.custom_metadata or {}
-        })
+        }
+        for doc in paginated_docs
+    ]
 
-    return filtered_results
+    return {
+        "data": formatted_results,
+        "total": total_results
+    }
 
 
 @router.get("/{document_id}/status", status_code=status.HTTP_200_OK)
