@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { APP_TEXTS } from '@/app/constants/texts';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { documentService } from '@/services/documentService'; // 👈 Importa tu servicio
 
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
@@ -38,36 +37,42 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
     setError(null);
     setPageNum(1);
 
-    const fileUrl = `${API_BASE_URL}/documents/${documentId}/file`;
+    const loadProtectedPdf = async () => {
+      try {
+        // 1. Descargamos el blob usando el servicio autenticado
+        const blob = await documentService.downloadPdf(documentId);
+        if (!isMounted) return;
 
-    const loadingTask = pdfjsLib.getDocument({
-      url: fileUrl,
-      useSystemFonts: true,
-      enableXfa: false,
-      rangeChunkSize: 64 * 1024,
-      disableRange: false,
-      disableStream: false,
-      verbosity: 0,
-    });
+        // 2. Convertimos el blob en un ArrayBuffer para pdfjs-dist
+        const arrayBuffer = await blob.arrayBuffer();
 
-    loadingTaskRef.current = loadingTask;
+        const loadingTask = pdfjsLib.getDocument({
+          data: arrayBuffer, // 👈 Pasamos los datos binarios en lugar de la URL
+          useSystemFonts: true,
+          enableXfa: false,
+          verbosity: 0,
+        });
 
-    loadingTask.promise
-      .then((pdf) => {
-        if (!isMounted) {
-          return;
-        }
+        loadingTaskRef.current = loadingTask;
+
+        const pdf = await loadingTask.promise;
+        if (!isMounted) return;
+
         setPdfDoc(pdf);
         setNumPages(pdf.numPages);
-      })
-      .catch((err) => {
+      } catch (err: any) {
         if (!isMounted) return;
         if (err?.name !== 'AbortException') {
           console.error(T.loadPdfErrorLog, err);
           setError(T.loadPdfErrorText);
         }
         setLoading(false);
-      });
+      }
+    };
+
+    if (documentId) {
+      loadProtectedPdf();
+    }
 
     return () => {
       isMounted = false;
@@ -80,7 +85,7 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
         loadingTaskRef.current = null;
       }
     };
-  }, [documentId]);
+  }, [documentId, T.loadPdfErrorLog, T.loadPdfErrorText]);
 
   const renderPage = useCallback(
     async (pageNumber: number, currentScale: number) => {

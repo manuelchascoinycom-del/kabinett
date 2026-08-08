@@ -55,3 +55,31 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
 
   return response.json();
 }
+
+// En services/apiClient.ts
+
+// services/apiClient.ts
+
+// Utiliza la misma constante BASE_URL que usa tu fetchApi
+export async function fetchBlob(endpoint: string, options: RequestInit = {}): Promise<Blob> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Petición a la URL real del backend sin añadir `/api` extra si ya va incluida en la base
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  const response = await fetch(url, { ...options, headers });
+
+  if (!response.ok) {
+    throw new Error(`Error en la descarga: ${response.statusText}`);
+  }
+
+  return response.blob();
+}

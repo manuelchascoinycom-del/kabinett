@@ -139,7 +139,7 @@ def list_documents(
 def filter_documents(
     payload: FilterPayloadSchema, 
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC añadido
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
     query = db.query(models.Document).filter(models.Document.status != "PENDING_REVIEW")
 
@@ -211,7 +211,7 @@ def filter_documents(
 def get_document_status(
     document_id: str, 
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC añadido
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
     doc = db.query(models.Document).filter(models.Document.id == document_id).first()
     if not doc:
@@ -233,7 +233,7 @@ def confirm_metadata(
     document_id: str, 
     payload: ConfirmMetadataSchema, 
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_roles(["Admin", "Editor"]))  # <--- RBAC añadido
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))
 ):
     doc = db.query(models.Document).filter(models.Document.id == document_id).first()
     if not doc:
@@ -278,7 +278,7 @@ def confirm_metadata(
 def get_document_file(
     document_id: str, 
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC añadido
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
     doc = db.query(models.Document).filter(models.Document.id == document_id).first()
     if not doc:
@@ -298,7 +298,42 @@ def get_document_file(
             "Cache-Control": "public, max-age=3600",
         }
     )
-    
+
+
+# ⬇️ NUEVO ENDPOINT DE DESCARGA DIRECTA (Acepta Admin, Editor y Viewer)
+# ⬇️ ENDPOINT DE DESCARGA
+# En documents.py (Backend)
+@router.get("/{document_id}/download", status_code=status.HTTP_200_OK)
+def download_document_file(
+    document_id: str, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
+):
+    doc = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    normalized_path = os.path.normpath(doc.storage_path)
+
+    if not os.path.exists(normalized_path):
+        raise HTTPException(status_code=404, detail="El archivo físico no se encuentra en el servidor")
+
+    filename_to_download = doc.filename
+    if doc.metadata_confirmed and doc.metadata_confirmed.get("title"):
+        title = doc.metadata_confirmed.get("title")
+        filename_to_download = f"{title}.pdf" if not title.lower().endswith(".pdf") else title
+
+    return FileResponse(
+        path=normalized_path,
+        media_type="application/pdf",
+        filename=filename_to_download,
+        headers={
+            # ⬇️ ESTA CABECERA ES LA CLAVE PARA EVITAR NUBES/PESTAÑAS EN EL NAVEGADOR
+            "Content-Disposition": f'attachment; filename="{filename_to_download}"'
+        }
+    )
+
+
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: str, 

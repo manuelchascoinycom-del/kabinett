@@ -1,5 +1,5 @@
 // services/documentService.ts
-import { fetchApi } from './apiClient';
+import { fetchApi, fetchBlob } from './apiClient';
 
 export interface DocumentType {
   id: string;
@@ -83,6 +83,13 @@ export const documentService = {
   deleteDocument: async (documentId: string): Promise<void> => {
     return fetchApi<void>(`/documents/${documentId}`, {
       method: 'DELETE',
+    });
+  },
+
+  // Descargar el binario del PDF
+  downloadPdf: async (documentId: string): Promise<Blob> => {
+    return fetchBlob(`/documents/${documentId}/download`, {
+      method: 'GET',
     });
   },
 };
