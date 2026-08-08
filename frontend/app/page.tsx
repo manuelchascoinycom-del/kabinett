@@ -87,10 +87,14 @@ export default function Home() {
     return (document.documentElement.dataset.themeMode as ThemeMode) || 'system';
   });
 
-  // 🟢 ESTADO 1: Cola de Subida Local
+  // Estados de Paginación
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage] = useState<number>(20);
+
+  // Cola de Subida Local
   const [uploadQueueItems, setUploadQueueItems] = useState<UploadItem[]>([]);
 
-  // 🔵 ESTADO 2: Documentos en la Biblioteca Raíz
+  // Documentos en la Biblioteca Raíz
   const [documents, setDocuments] = useState<any[]>([]);
 
   // Raw global para facetas
@@ -208,10 +212,12 @@ export default function Home() {
 
   const fetchDocuments = useCallback(async () => {
     try {
-      const globalData = await documentService.getAll();
-      setTotalGlobalDocuments(globalData.length);
+      const response: any = await documentService.getAll(1, 100);
+      const docsArray = response?.data || [];
+      const totalCount = response?.total || docsArray.length;
+      setTotalGlobalDocuments(totalCount);
 
-      const loadedItems: UploadItem[] = globalData.map((doc: BackendDocument) => ({
+      const loadedItems: UploadItem[] = docsArray.map((doc: BackendDocument) => ({
         id: doc.id,
         backendId: doc.id,
         file: { name: doc.filename, size: 0 } as File,
@@ -238,7 +244,7 @@ export default function Home() {
 
       setRawGlobalDocuments(loadedItems);
     } catch (e) {
-      console.error('Error al cargar documentos:', e);
+      console.error('Error al cargar documentos globales:', e);
     }
   }, []);
 
@@ -249,20 +255,36 @@ export default function Home() {
     fetchDocuments();
   }, [fetchDocuments]);
 
+  // Resetea la página a 1 cada vez que se modifican los filtros o la búsqueda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters]);
+
   const applyFilters = useCallback(async () => {
     setIsSearching(true);
     try {
       const payload = {
         query: searchQuery,
+        search: searchQuery,
         collection_id: selectedCollectionId,
+        collection_ids: selectedCollectionId ? [selectedCollectionId] : [],
         composers: selectedComposers,
         tags: selectedTags,
         custom_filters: selectedCustomFilters,
+        custom_fields: selectedCustomFilters,
+        page: currentPage,
+        limit: itemsPerPage,
       };
 
-      const data = await documentService.filter(payload);
+      const response: any = await documentService.filter(payload);
+      const docsArray = response?.data || [];
+      const totalCount = response?.total;
 
-      const readyDocs = data
+      if (totalCount !== undefined) {
+        setTotalGlobalDocuments(totalCount);
+      }
+
+      const readyDocs = docsArray
         .filter((doc: any) => doc.status !== 'PENDING_REVIEW')
         .map((doc: any) => ({
           id: doc.id,
@@ -284,7 +306,7 @@ export default function Home() {
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters]);
+  }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters, currentPage, itemsPerPage]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -292,6 +314,8 @@ export default function Home() {
     }, 250);
     return () => clearTimeout(timer);
   }, [applyFilters]);
+
+  const totalPages = Math.ceil(totalGlobalDocuments / itemsPerPage) || 1;
 
   const facets = useMemo(() => {
     const composerCounts: Record<string, number> = {};
@@ -570,23 +594,18 @@ export default function Home() {
     }
   };
 
-  // En tu componente padre
   const handleDeleteDocument = async (documentId: string) => {
     try {
       await documentService.deleteDocument(documentId);
-      // Actualizamos la lista local removiendo la partitura borrada
       setDocuments((prevDocs) => prevDocs.filter((doc) => (doc.backendId || doc.id) !== documentId));
     } catch (error) {
       console.error('Error al eliminar el documento:', error);
     }
   };
 
-  // En app/page.tsx
   const handleDownloadPdf = async (documentId: string, title: string) => {
     try {
       const rawBlob = await documentService.downloadPdf(documentId);
-      
-      // 💡 Forzar el tipo MIME application/pdf en Firefox
       const blob = new Blob([rawBlob], { type: 'application/pdf' });
       const blobUrl = window.URL.createObjectURL(blob);
       
@@ -602,7 +621,6 @@ export default function Home() {
       downloadLink.click();
       document.body.removeChild(downloadLink);
 
-      // En Firefox se necesita dar un margen ligeramente mayor para revocar el URL
       setTimeout(() => {
         window.URL.revokeObjectURL(blobUrl);
       }, 1000);
@@ -662,7 +680,6 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen bg-[var(--app-bg)] text-[color:var(--text-primary)] font-sans transition-colors duration-200">
-      {/* Sidebar 1: Navegación Principal y Colecciones */}
       <Sidebar
         totalGlobalDocuments={totalGlobalDocuments}
         selectedCollectionId={selectedCollectionId}
@@ -675,7 +692,6 @@ export default function Home() {
         onDeleteCollection={handleDeleteCollectionClick}
       />
 
-      {/* Sidebar 2: Panel Lateral de Filtros Facetados */}
       <FacetedFilters
         facets={facets}
         selectedComposers={selectedComposers}
@@ -691,17 +707,14 @@ export default function Home() {
         onClearAllFilters={clearAllFilters}
       />
 
-      {/* Panel Principal */}
       <main className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
-          {/* Barra de Búsqueda Global */}
           <SearchBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             isSearching={isSearching}
           />
 
-          {/* Zona de Carga (Dropzone) - Solo accesible para Editor y Admin */}
           <HasRole canEdit>
             <Dropzone
               getRootProps={getRootProps}
@@ -716,7 +729,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* COLA DE SUBIDA LOCAL - Solo accesible para Editor y Admin */}
           <HasRole canEdit>
             <UploadQueue
               items={uploadQueueItems}
@@ -729,13 +741,12 @@ export default function Home() {
             />
           </HasRole>
 
-          {/* SECCIÓN DE DOCUMENTOS */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-[color:var(--text-strong)]">
               {selectedCollectionId
                 ? `${APP_TEXTS.home.collectionTitlePrefix}${collections.find((c) => c.id === selectedCollectionId)?.name || ''}`
                 : APP_TEXTS.home.rootLibraryTitle}{' '}
-              ({documents.length})
+              ({totalGlobalDocuments})
             </h3>
 
             {documents.map((doc) => (
@@ -752,11 +763,33 @@ export default function Home() {
                 onDownloadPdf={handleDownloadPdf}
               />
             ))}
+
+            {/* Controles de Paginación */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-[color:var(--border-color)]">
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-[color:var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] hover:bg-[color:var(--surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Anterior
+                </button>
+                <span className="text-xs text-[color:var(--text-secondary)]">
+                  Página <strong className="text-[color:var(--text-strong)]">{currentPage}</strong> de <strong className="text-[color:var(--text-strong)]">{totalPages}</strong>
+                </span>
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-[color:var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] hover:bg-[color:var(--surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </main>
 
-      {/* Modal de Edición / Confirmación de Metadatos */}
       <EditMetadataModal
         isOpen={!!editingItem}
         editingItem={editingItem}
@@ -768,7 +801,6 @@ export default function Home() {
         onConfirm={handleConfirmMetadata}
       />
 
-      {/* Visor Nativo de PDF */}
       {viewingDocument && (
         <PDFViewer
           documentId={viewingDocument.id}
@@ -777,7 +809,6 @@ export default function Home() {
         />
       )}
 
-      {/* Modal Crear Colección */}
       <CreateCollectionModal
         isOpen={showNewCollectionModal}
         newCollectionName={newCollectionName}
@@ -786,7 +817,6 @@ export default function Home() {
         onSubmit={handleCreateCollection}
       />
 
-      {/* Modal Configurar Campos Personalizados */}
       <CustomFieldsModal
         isOpen={showConfigModal}
         newFieldName={newFieldName}
@@ -801,7 +831,6 @@ export default function Home() {
         onSubmit={handleCreateCustomField}
       />
 
-      {/* Modal de confirmación de eliminación */}
       <ConfirmModal
         isOpen={!!collectionToDelete}
         title={APP_TEXTS.modals.deleteCollection.title}
