@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { APP_TEXTS } from "@/app/constants/texts";
 import { authService } from "@/services/authService";
@@ -14,16 +14,20 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 1. Invocación correcta de Hooks al inicio del componente
+  // 1. Hooks de navegación y parámetros
   const { login, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // 2. Redirección inmediata si el usuario abre /login teniendo sesión activa
+  // Obtener callbackUrl de la URL, por defecto la raíz "/"
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
+
+  // 2. Redirección si el usuario ya está autenticado
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      router.replace("/");
+      router.replace(callbackUrl);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, router, callbackUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +39,8 @@ export default function LoginPage() {
       if (!data.access_token) {
         throw new Error(T.invalidSessionResponseError);
       }
+      
+      // Se guarda el token y el useEffect redirigirá a callbackUrl cuando isAuthenticated pase a true
       login(data.access_token);
     } catch (err: any) {
       setErrorMsg(err.message || T.genericError);

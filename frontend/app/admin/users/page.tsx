@@ -3,6 +3,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation'; // <-- Importar useRouter y usePathname
 import { useAuth } from '@/context/AuthContext';
 import { userService, User, CreateUserPayload, UpdateUserPayload } from '@/services/userService';
 import { UserModal } from '@/components/admin/UserModal';
@@ -11,9 +12,11 @@ import { APP_TEXTS } from '@/app/constants/texts';
 
 export default function AdminUsersPage() {
   const T = APP_TEXTS.adminUsers;
+  const router = useRouter();
+  const pathname = usePathname();
 
-  // 1. TODOS LOS HOOKS DECLARADOS AL INICIO
-  const { hasRole, isLoading: authLoading } = useAuth();
+  // 1. HOOKS Y ESTADOS
+  const { isAuthenticated, hasRole, isLoading: authLoading } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -27,20 +30,15 @@ export default function AdminUsersPage() {
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
-  // Helper para extraer el detalle del error JSON
-  const cleanErrorMessage = (rawError: string): string => {
-    try {
-      const jsonMatch = rawError.match(/\{.*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed.detail) return parsed.detail;
-      }
-    } catch {
-      // Si falla el parseo, se mantiene el mensaje original
+  // Redirección si NO está autenticado
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      const callbackUrl = encodeURIComponent(pathname);
+      router.replace(`/login?callbackUrl=${callbackUrl}`);
     }
-    return rawError;
-  };
+  }, [authLoading, isAuthenticated, pathname, router]);
 
+  // Cargar usuarios solo si está autenticado y es Admin
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -61,14 +59,31 @@ export default function AdminUsersPage() {
   }, [page, search, roleFilter, T.defaultLoadError]);
 
   useEffect(() => {
-    if (!authLoading && hasRole('Admin')) {
+    if (!authLoading && isAuthenticated && hasRole('Admin')) {
       loadUsers();
     }
-  }, [authLoading, loadUsers, hasRole]);
+  }, [authLoading, isAuthenticated, loadUsers, hasRole]);
 
-  // 2. CONDICIONES DE GUARDA Y RETORNOS PREVIOS
-  if (authLoading) return <div className="p-8 text-xs text-emerald-500">{APP_TEXTS.auth.loadingSession}</div>;
+  // Helper para extraer el detalle del error JSON
+  const cleanErrorMessage = (rawError: string): string => {
+    try {
+      const jsonMatch = rawError.match(/\{.*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.detail) return parsed.detail;
+      }
+    } catch {
+      // Si falla el parseo, se mantiene el mensaje original
+    }
+    return rawError;
+  };
 
+  // 2. CONDICIONES DE GUARDA
+  if (authLoading || !isAuthenticated) {
+    return <div className="p-8 text-xs text-emerald-500">{APP_TEXTS.auth.loadingSession}</div>;
+  }
+
+  // Si está autenticado pero NO es Admin, mostrar 403
   if (!hasRole('Admin')) {
     return (
       <div className="p-8 text-center text-red-400">
@@ -259,7 +274,7 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* Modal de Edición/Creación */}
+      {/* Modales */}
       <UserModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -267,7 +282,6 @@ export default function AdminUsersPage() {
         userToEdit={userToEdit}
       />
 
-      {/* Modal de Alerta estilizada */}
       <AlertModal
         isOpen={!!alertMessage}
         message={alertMessage || ''}
