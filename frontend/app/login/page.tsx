@@ -1,4 +1,3 @@
-// app/login/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -6,11 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { APP_TEXTS } from "@/app/constants/texts";
 import { authService } from "@/services/authService";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const T = APP_TEXTS.login;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -99,14 +100,29 @@ export default function LoginPage() {
             <label className="block text-xs font-semibold text-[color:var(--text-muted)] mb-1.5 uppercase tracking-wider">
               {T.passwordLabel}
             </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={T.passwordPlaceholder}
-              className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-[var(--panel-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-all placeholder:text-[color:var(--text-subtle)]"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={T.passwordPlaceholder}
+                className="w-full pl-3.5 pr-10 py-2.5 rounded-xl text-xs bg-[var(--panel-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-all placeholder:text-[color:var(--text-subtle)]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] cursor-pointer transition-colors"
+                tabIndex={-1}
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <button
