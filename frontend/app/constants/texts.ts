@@ -40,6 +40,14 @@ export const APP_TEXTS = {
     },
   },
   modals: {
+    deleteDocument: {
+      title: 'Eliminar Documento',
+      subtitle: 'Esta acción no se puede deshacer',
+      messagePrefix: '¿Estás seguro de que deseas eliminar permanentemente la partitura',
+      cancelBtn: 'Cancelar',
+      confirmBtn: 'Eliminar',
+      deletingBtn: 'Eliminando...',
+    },
     confirmModal: {
       dangerIcon: '⚠️',
       infoIcon: '❓',
@@ -139,7 +147,14 @@ export const APP_TEXTS = {
     viewPdfTooltip: 'Ver partitura en el visor integrado',
     viewPdfIcon: '👁️',
     viewPdfBtn: 'Ver PDF',
+    downloadPdfTooltip: 'Descargar archivo PDF',
+    downloadPdfIcon: '⬇️',
+    downloadPdfBtn: 'Descargar',
+    downloadingPdfBtn: 'Descargando...',
     editBtn: 'Editar',
+    deleteBtn: 'Eliminar',
+    deleteTooltip: 'Eliminar documento del sistema',
+    deleteIcon: '🗑️',
     moveToOption: '📁 Mover a...',
   },
   pdfViewer: {

@@ -570,6 +570,47 @@ export default function Home() {
     }
   };
 
+  // En tu componente padre
+  const handleDeleteDocument = async (documentId: string) => {
+    try {
+      await documentService.deleteDocument(documentId);
+      // Actualizamos la lista local removiendo la partitura borrada
+      setDocuments((prevDocs) => prevDocs.filter((doc) => (doc.backendId || doc.id) !== documentId));
+    } catch (error) {
+      console.error('Error al eliminar el documento:', error);
+    }
+  };
+
+  // En app/page.tsx
+  const handleDownloadPdf = async (documentId: string, title: string) => {
+    try {
+      const rawBlob = await documentService.downloadPdf(documentId);
+      
+      // 💡 Forzar el tipo MIME application/pdf en Firefox
+      const blob = new Blob([rawBlob], { type: 'application/pdf' });
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      const fileName = title.endsWith('.pdf') ? title : `${title}.pdf`;
+      
+      const downloadLink = document.createElement('a');
+      downloadLink.style.display = 'none';
+      downloadLink.href = blobUrl;
+      downloadLink.setAttribute('download', fileName);
+      downloadLink.target = '_self';
+
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+
+      // En Firefox se necesita dar un margen ligeramente mayor para revocar el URL
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 1000);
+    } catch (error) {
+      console.error('Error al descargar el archivo:', error);
+    }
+  };
+
   const handleRemoveFromCollection = async (docId: string, collectionId: string) => {
     try {
       await collectionService.removeDocument(collectionId, docId);
@@ -707,6 +748,8 @@ export default function Home() {
                 onEdit={openEditModal}
                 onViewPdf={(backendId, title) => setViewingDocument({ id: backendId, title })}
                 onAssignCollection={handleAssignToCollection}
+                onDelete={handleDeleteDocument}
+                onDownloadPdf={handleDownloadPdf}
               />
             ))}
           </div>
