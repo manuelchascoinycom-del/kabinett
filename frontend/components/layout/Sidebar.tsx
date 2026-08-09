@@ -11,6 +11,7 @@ export interface Collection {
   id: string;
   name: string;
   document_count?: number;
+  children?: Collection[];
 }
 
 type ThemeMode = 'light' | 'dark' | 'system';
@@ -22,10 +23,125 @@ interface SidebarProps {
   collections: Collection[];
   themeMode: ThemeMode;
   onThemeModeChange: (mode: ThemeMode) => void;
-  onOpenNewCollectionModal: () => void;
+  // Actualizado: ahora acepta opcionalmente el ID del padre
+  onOpenNewCollectionModal: (parentId?: string) => void; 
   onOpenConfigModal: () => void;
   onDeleteCollection?: (id: string) => void;
 }
+
+// Subcomponente recursivo interno para las colecciones y subcolecciones
+interface CollectionTreeItemProps {
+  collection: Collection;
+  selectedCollectionId: string | null;
+  onSelect: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onAddSubcollection?: (parentId: string) => void; // NUEVO
+  depth?: number;
+}
+
+const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
+  collection,
+  selectedCollectionId,
+  onSelect,
+  onDelete,
+  onAddSubcollection,
+  depth = 0,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const isSelected = selectedCollectionId === collection.id;
+  const hasChildren = collection.children && collection.children.length > 0;
+
+  return (
+    <div className="w-full">
+      <div
+        onClick={() => onSelect(collection.id)}
+        className={`group w-full px-3 py-1.5 rounded-lg text-xs font-medium flex justify-between items-center cursor-pointer transition-all ${
+          isSelected
+            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+            : 'text-[color:var(--text-muted)] hover:bg-[var(--panel-hover)] hover:text-[color:var(--text-secondary)]'
+        }`}
+        style={{ paddingLeft: `${(depth * 12) + 12}px` }}
+      >
+        <div className="flex items-center gap-1.5 truncate pr-1">
+          {hasChildren ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(!isOpen);
+              }}
+              className="text-[color:var(--text-muted)] hover:text-[color:var(--text-secondary)] focus:outline-none w-4 text-center transition-transform"
+            >
+              {isOpen ? '▼' : '▶'}
+            </button>
+          ) : (
+            <span className="w-4" />
+          )}
+          <span className="truncate">
+            {APP_TEXTS.sidebar.collectionIcon} {collection.name}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* NUEVO: Botón para añadir subcolección */}
+          {onAddSubcollection && (
+            <HasRole canEdit>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Forzamos a que se abra el desplegable para que el usuario vea la nueva colección al crearla
+                  setIsOpen(true);
+                  onAddSubcollection(collection.id);
+                }}
+                className="opacity-0 group-hover:opacity-100 text-[color:var(--text-subtle)] hover:text-emerald-500 p-0.5 transition-all text-lg leading-none flex items-center justify-center"
+                title="Añadir subcolección"
+              >
+                +
+              </button>
+            </HasRole>
+          )}
+
+          {onDelete && (
+            <HasRole canDelete>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(collection.id);
+                }}
+                className="opacity-0 group-hover:opacity-100 text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] p-0.5 transition-all text-xs"
+                title={APP_TEXTS.sidebar.deleteCollectionTooltip}
+              >
+                {APP_TEXTS.sidebar.deleteIcon}
+              </button>
+            </HasRole>
+          )}
+
+          <span className="text-[10px] bg-[var(--panel-bg)] border border-[color:var(--border-color)] text-[color:var(--text-muted)] px-2 py-0.5 rounded-full">
+            {collection.document_count ?? 0}
+          </span>
+        </div>
+      </div>
+
+      {hasChildren && isOpen && (
+        <div className="space-y-1 mt-1">
+          {collection.children?.map((child) => (
+            <CollectionTreeItem
+              key={child.id}
+              collection={child}
+              selectedCollectionId={selectedCollectionId}
+              onSelect={onSelect}
+              onDelete={onDelete}
+              onAddSubcollection={onAddSubcollection}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const Sidebar: React.FC<SidebarProps> = ({
   totalGlobalDocuments,
@@ -98,10 +214,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {APP_TEXTS.sidebar.collectionsTitle}
               </span>
               
-              {/* Solo usuarios con permiso de edición (Editor y Admin) ven la acción de nueva colección */}
+              {/* Solo usuarios con permiso de edición (Editor y Admin) ven la acción de nueva colección (Raíz) */}
               <HasRole canEdit>
                 <button
-                  onClick={onOpenNewCollectionModal}
+                  onClick={() => onOpenNewCollectionModal(undefined)}
                   className="text-[11px] text-emerald-500 hover:text-emerald-400 font-bold"
                 >
                   {APP_TEXTS.sidebar.newCollectionBtn}
@@ -111,40 +227,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <div className="space-y-1">
               {collections.map((col) => (
-                <div
+                <CollectionTreeItem
                   key={col.id}
-                  onClick={() => setSelectedCollectionId(col.id)}
-                  className={`group w-full px-3 py-1.5 rounded-lg text-xs font-medium flex justify-between items-center cursor-pointer transition-all ${
-                    selectedCollectionId === col.id
-                      ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                      : 'text-[color:var(--text-muted)] hover:bg-[var(--panel-hover)] hover:text-[color:var(--text-secondary)]'
-                  }`}
-                >
-                  <span className="truncate pr-1">{APP_TEXTS.sidebar.collectionIcon} {col.name}</span>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {/* Solo usuarios con permiso de eliminación (Admin) pueden eliminar colecciones */}
-                    {onDeleteCollection && (
-                      <HasRole canDelete>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteCollection(col.id);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] p-0.5 transition-all text-xs"
-                          title={APP_TEXTS.sidebar.deleteCollectionTooltip}
-                        >
-                          {APP_TEXTS.sidebar.deleteIcon}
-                        </button>
-                      </HasRole>
-                    )}
-
-                    <span className="text-[10px] bg-[var(--panel-bg)] border border-[color:var(--border-color)] text-[color:var(--text-muted)] px-2 py-0.5 rounded-full">
-                      {col.document_count ?? 0}
-                    </span>
-                  </div>
-                </div>
+                  collection={col}
+                  selectedCollectionId={selectedCollectionId}
+                  onSelect={setSelectedCollectionId}
+                  onDelete={onDeleteCollection}
+                  onAddSubcollection={(parentId) => onOpenNewCollectionModal(parentId)}
+                />
               ))}
             </div>
           </div>

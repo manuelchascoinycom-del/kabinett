@@ -1,0 +1,30 @@
+# Reglas de Proyecto para Kabinett (Cline Rules)
+
+## Contexto del Proyecto
+Kabinett es un gestor de partituras en PDF. 
+- Backend: Python (FastAPI / Pydantic).
+- Frontend: Next.js (React, TypeScript, Tailwind CSS).
+- Base de Datos: Supabase (PostgreSQL), gestionada mediante la cadena de conexión ubicada en el fichero `.env`.
+
+## Configuración y Entorno (.env)
+- **Credenciales y Secretos:** Todas las variables de entorno sensibles (como la URL de conexión a Supabase, claves API, etc.) residen exclusivamente en el fichero `.env` de la raíz o del backend. Nunca hardcodees credenciales en el código fuente.
+- **ORM / Migraciones:** SQLAlchemy se conecta a Supabase leyendo la variable de entorno correspondiente desde el `.env`.
+
+## Convenciones del Backend (Python / FastAPI)
+- **Tipado estricto:** Usa siempre type hints y modelos de Pydantic para validar entradas y salidas de la API.
+- **Estructura de respuestas:** Las respuestas paginadas o con listados deben seguir el formato `{ data: [...], total: int }`.
+- **Colecciones jerárquicas:** El modelo de `Collection` debe soportar `parent_id: Optional[str] = None` para permitir subcolecciones en árbol.
+- **Indexación de archivos:** Distinguir entre almacenamiento gestionado (`/uploads`) y externo (indexación in-place mediante `relative_path` y `storage_type`).
+- **Asincronía:** Utiliza funciones `async def` para los endpoints y operaciones I/O en background.
+
+## Convenciones del Frontend (Next.js / TypeScript)
+- **TypeScript:** Evita el uso de `any`. Define interfaces claras en `services/` o en los componentes.
+- **Peticiones API:** Utiliza siempre la abstracción `fetchApi` de `services/apiClient.ts` para todas las llamadas al backend. No uses `axios` ni `fetch` nativo directamente salvo para descargas de BLOB/PDF.
+- **Estilos:** Utiliza variables CSS temáticas (`var(--app-bg)`, `var(--text-primary)`) y clases de Tailwind CSS para garantizar compatibilidad con el modo claro/oscuro.
+- **Estado de Paginación:** Al aplicar o reiniciar filtros en la interfaz, resetea la página actual a 1.
+
+## Comportamiento del Agente (Cline)
+- **Gestión de Contexto y Tokens (Prevención Error 429):** Para evitar exceder los límites de la API, NUNCA escanees ni leas directorios completos de forma indiscriminada. Trabaja estrictamente sobre los archivos que el usuario te indique explícitamente mediante el uso de `@` (ej. `@models.py`). Si necesitas ver un archivo adicional, solicita permiso al usuario para que te lo referencie.
+- **Modificación modular:** Antes de realizar un cambio extenso, analiza las dependencias cruzadas entre el backend y los tipos de TypeScript en el frontend.
+- **Validación:** Tras editar código en el backend, verifica que los esquemas Pydantic coincidan exactamente con las interfaces TypeScript del frontend.
+- **Pruebas:** Si creas endpoints o métodos de servicio nuevos, propone o ejecuta un test básico de verificación antes de dar por completada la tarea.

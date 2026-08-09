@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
 import models
-from schemas.collection import CollectionCreate, CollectionResponse, AssignDocumentSchema
+from schemas.collection import CollectionCreate, CollectionResponse, AssignDocumentSchema, CollectionNode
 from dependencies import require_roles  # <--- Importación actualizada
 
 router = APIRouter(prefix="/collections", tags=["Collections"])
@@ -17,7 +17,8 @@ def create_collection(
 ):
     new_collection = models.Collection(
         name=payload.name,
-        description=payload.description
+        description=payload.description,
+        parent_id=payload.parent_id
     )
     db.add(new_collection)
     db.commit()
@@ -26,13 +27,15 @@ def create_collection(
         id=new_collection.id,
         name=new_collection.name,
         description=new_collection.description,
+        parent_id=new_collection.parent_id,
         created_at=new_collection.created_at,
         document_count=0
     )
 
-@router.get("", response_model=list[CollectionResponse])
+@router.get("", response_model=list[CollectionNode] | list[CollectionResponse])
 def list_collections(
     db: Session = Depends(get_db),
+    tree: bool = False,  # Nuevo parámetro para solicitar estructura de árbol
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC
 ):
     collections = db.query(
@@ -40,16 +43,40 @@ def list_collections(
         func.count(models.document_collections.c.document_id).label("doc_count")
     ).outerjoin(models.document_collections).group_by(models.Collection.id).all()
 
-    result = []
-    for col, count in collections:
-        result.append(CollectionResponse(
+    if not tree:
+        result = []
+        for col, count in collections:
+            result.append(CollectionResponse(
+                id=col.id,
+                name=col.name,
+                description=col.description,
+                parent_id=col.parent_id,
+                created_at=col.created_at,
+                document_count=count
+            ))
+        return result
+    else:
+        # Lógica para construir el árbol
+        collection_map = {str(col.id): CollectionNode(
             id=col.id,
             name=col.name,
             description=col.description,
+            parent_id=col.parent_id,
             created_at=col.created_at,
-            document_count=count
-        ))
-    return result
+            document_count=count,
+            children=[]
+        ) for col, count in collections}
+
+        # CORRECCIÓN: Usar .items() en lugar de .values() para desempaquetar col_id y node correctamente
+        for col_id, node in collection_map.items():
+            if node.parent_id:
+                parent = collection_map.get(str(node.parent_id))
+                if parent: # Asegurarse de que el padre existe
+                    parent.children.append(node)
+
+        # Retornar solo las colecciones raíz (sin parent_id)
+        return [node for node in collection_map.values() if not node.parent_id]
+
 
 @router.post("/{collection_id}/documents", status_code=status.HTTP_200_OK)
 def assign_document_to_collection(
@@ -120,7 +147,7 @@ def get_documents_by_collection(
     
 @router.delete("/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_collection(
-    collection_id: str, 
+    collection_id: uuid.UUID,  # CORRECCIÓN: Cambiado de str a uuid.UUID para evitar errores con Supabase/Postgres
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["Admin"]))  # <--- RBAC
 ):

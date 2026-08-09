@@ -56,6 +56,7 @@ interface Collection {
   name: string;
   description?: string;
   document_count: number;
+  children?: Collection[]; // Opcional, por si tu backend devuelve un árbol
 }
 
 interface CustomField {
@@ -127,6 +128,7 @@ export default function Home() {
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
+  const [modalParentId, setModalParentId] = useState<string | undefined>(undefined); // NUEVO ESTADO PARA EL PADRE
   const [totalGlobalDocuments, setTotalGlobalDocuments] = useState<number>(0);
 
   // Campos Personalizados
@@ -570,15 +572,17 @@ export default function Home() {
     searchQuery.trim().length > 0 ||
     selectedCollectionId !== null;
 
+  // NUEVO: Pasa el parentId al crear
   const handleCreateCollection = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCollectionName.trim()) return;
 
     try {
-      await collectionService.create(newCollectionName);
+      await collectionService.create(newCollectionName, modalParentId);
       setNewCollectionName('');
+      setModalParentId(undefined); // Resetear estado para evitar bugs en futuras creaciones
       setShowNewCollectionModal(false);
-      fetchCollections();
+      fetchCollections(); // Refrescar el árbol
     } catch (e) {
       console.error('Error al crear colección:', e);
     }
@@ -678,6 +682,24 @@ export default function Home() {
     }
   };
 
+  // NUEVO: Función auxiliar para buscar el nombre de la colección padre en un array (o árbol) y pasárselo al Modal visualmente
+  const parentCollectionName = useMemo(() => {
+    if (!modalParentId) return null;
+    
+    const findName = (cols: Collection[]): string | null => {
+      for (const c of cols) {
+        if (c.id === modalParentId) return c.name;
+        if (c.children) {
+          const found = findName(c.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    return findName(collections);
+  }, [modalParentId, collections]);
+
   return (
     <div className="flex min-h-screen bg-[var(--app-bg)] text-[color:var(--text-primary)] font-sans transition-colors duration-200">
       <Sidebar
@@ -687,7 +709,11 @@ export default function Home() {
         collections={collections}
         themeMode={themeMode}
         onThemeModeChange={handleThemeModeChange}
-        onOpenNewCollectionModal={() => setShowNewCollectionModal(true)}
+        // NUEVO: Guardar el parentId que nos pasa el sidebar (o undefined si es raíz)
+        onOpenNewCollectionModal={(parentId) => {
+          setModalParentId(parentId);
+          setShowNewCollectionModal(true);
+        }}
         onOpenConfigModal={() => setShowConfigModal(true)}
         onDeleteCollection={handleDeleteCollectionClick}
       />
@@ -772,17 +798,17 @@ export default function Home() {
                   disabled={currentPage === 1}
                   className="px-4 py-2 text-xs font-semibold rounded-lg bg-[color:var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] hover:bg-[color:var(--surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                  Anterior
+                  {APP_TEXTS.home.pagination.previous}
                 </button>
                 <span className="text-xs text-[color:var(--text-secondary)]">
-                  Página <strong className="text-[color:var(--text-strong)]">{currentPage}</strong> de <strong className="text-[color:var(--text-strong)]">{totalPages}</strong>
+                  {APP_TEXTS.home.pagination.page} <strong className="text-[color:var(--text-strong)]">{currentPage}</strong> {APP_TEXTS.home.pagination.of} <strong className="text-[color:var(--text-strong)]">{totalPages}</strong>
                 </span>
                 <button
                   onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
                   className="px-4 py-2 text-xs font-semibold rounded-lg bg-[color:var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] hover:bg-[color:var(--surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                  Siguiente
+                  {APP_TEXTS.home.pagination.next}
                 </button>
               </div>
             )}
@@ -813,8 +839,13 @@ export default function Home() {
         isOpen={showNewCollectionModal}
         newCollectionName={newCollectionName}
         setNewCollectionName={setNewCollectionName}
-        onClose={() => setShowNewCollectionModal(false)}
+        // NUEVO: Limpiamos el estado si el usuario cierra el modal para evitar que la próxima vez cree una subcolección por error
+        onClose={() => {
+          setShowNewCollectionModal(false);
+          setModalParentId(undefined);
+        }}
         onSubmit={handleCreateCollection}
+        parentCollectionName={parentCollectionName} // Opcional: si usas la versión actualizada del Modal que te pasé
       />
 
       <CustomFieldsModal

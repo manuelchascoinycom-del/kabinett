@@ -1,10 +1,16 @@
-// components/documents/DocumentCard.tsx
 'use client';
 
 import React, { useState } from 'react';
 import { APP_TEXTS } from '@/app/constants/texts';
 import { HasRole } from '@/components/auth/HasRole';
 import { DeleteConfirmModal } from '@/components/modals/DeleteConfirmModal';
+
+interface CollectionNode {
+  id: string;
+  name: string;
+  document_count?: number;
+  children?: CollectionNode[];
+}
 
 interface DocumentCardProps {
   item: {
@@ -17,7 +23,7 @@ interface DocumentCardProps {
     isConfirmed?: boolean;
     pdfUrl?: string;
   };
-  collections: Array<{ id: string; name: string }>;
+  collections: CollectionNode[];
   selectedCollectionId?: string | null;
   onRemoveFromCollection?: (docId: string, collectionId: string) => void;
   onEdit: (item: any) => void;
@@ -26,6 +32,24 @@ interface DocumentCardProps {
   onAssignCollection: (backendId: string, collectionId: string) => void;
   onDelete?: (backendId: string) => void;
 }
+
+interface FlattenedCollection {
+  id: string;
+  name: string;
+  level: number;
+}
+
+// Función recursiva para aplanar las colecciones y calcular su nivel de anidación
+const flattenCollections = (cols: CollectionNode[], level = 0): FlattenedCollection[] => {
+  let result: FlattenedCollection[] = [];
+  for (const col of cols) {
+    result.push({ id: col.id, name: col.name, level });
+    if (col.children && col.children.length > 0) {
+      result = result.concat(flattenCollections(col.children, level + 1));
+    }
+  }
+  return result;
+};
 
 export const DocumentCard: React.FC<DocumentCardProps> = ({
   item,
@@ -53,7 +77,6 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const T = APP_TEXTS.documentCard;
 
   const handleDownload = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    // Prevenir cualquier propagación del evento a nivel de React y DOM Nativo
     e.preventDefault();
     e.stopPropagation();
     e.nativeEvent.stopImmediatePropagation?.();
@@ -67,7 +90,6 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       if (onDownloadPdf) {
         await onDownloadPdf(docId, title);
       } else if (item.pdfUrl) {
-        // Fallback
         const response = await fetch(item.pdfUrl);
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -102,6 +124,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       setShowDeleteModal(false);
     }
   };
+
+  const flattenedCollections = flattenCollections(collections);
 
   return (
     <>
@@ -170,7 +194,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             </button>
           )}
 
-          {/* Descargar PDF: Público para todos los roles */}
+          {/* Descargar PDF */}
           {(item.backendId || item.pdfUrl) && (
             <button
               type="button"
@@ -194,8 +218,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             </button>
           </HasRole>
 
-          {/* Asignar colección */}
-          {collections.length > 0 && item.backendId && (
+          {/* Asignar colección (con subcolecciones jerárquicas) */}
+          {flattenedCollections.length > 0 && item.backendId && (
             <HasRole canEdit>
               <select
                 onChange={(e) => {
@@ -208,9 +232,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
                 className="bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-lg px-2 py-1.5 outline-none hover:border-[color:var(--border-hover)] cursor-pointer"
               >
                 <option value="" disabled>{T.moveToOption}</option>
-                {collections.map((col) => (
+                {flattenedCollections.map((col) => (
                   <option key={col.id} value={col.id}>
-                    {col.name}
+                    {'\u00A0\u00A0'.repeat(col.level)} {col.level > 0 ? '└─ ' : ''}{col.name}
                   </option>
                 ))}
               </select>
