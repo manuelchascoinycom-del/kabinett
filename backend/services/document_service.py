@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+from typing import Union, Dict, Any
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status, BackgroundTasks
 import models
@@ -60,3 +62,101 @@ def register_external_document(
         background_tasks.add_task(process_pdf_in_background, str(new_doc.id), abs_path)
 
     return new_doc
+
+
+def scan_directory_dry_run(path: Union[str, Path]) -> Dict[str, Any]:
+    """
+    Escanea recursivamente un directorio (Dry-Run) y devuelve una estructura en árbol
+    de las carpetas y archivos PDF encontrados, con contadores y tamaños totales.
+    Valida la existencia y permisos, y descarta ficheros y carpetas ocultos.
+    """
+    path_obj = Path(path)
+
+    # 1. Validar existencia física en el disco
+    if not path_obj.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"El directorio especificado no existe: {path}"
+        )
+
+    # 2. Validar que sea un directorio (si es un archivo, HTTP 400)
+    if path_obj.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"La ruta especificada es un archivo, se esperaba un directorio: {path}"
+        )
+    if not path_obj.is_dir():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"La ruta especificada no es un directorio válido: {path}"
+        )
+
+    # 3. Validar permisos de lectura en el directorio raíz (si no hay permisos, HTTP 400)
+    if not os.access(path_obj, os.R_OK):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No hay permisos de lectura para el directorio especificado: {path}"
+        )
+
+    def _scan_node(current_path: Path) -> Dict[str, Any]:
+        name = current_path.name or str(current_path)
+        
+        files_list = []
+        subfolders_list = []
+        
+        total_folders = 0
+        total_files = 0
+        total_size = 0
+        
+        try:
+            for item in current_path.iterdir():
+                # Omitir archivos/carpetas ocultos (que empiezan por .)
+                if item.name.startswith('.'):
+                    continue
+                    
+                if item.is_file():
+                    # Filtrar estrictamente archivos con extensión .pdf (case insensitive)
+                    if item.suffix.lower() == '.pdf':
+                        try:
+                            if os.access(item, os.R_OK):
+                                size = item.stat().st_size
+                                files_list.append({
+                                    "name": item.name,
+                                    "size": size,
+                                    "absolute_path": str(item.resolve())
+                                })
+                                total_files += 1
+                                total_size += size
+                        except Exception:
+                            # Ignorar archivos ilegibles temporalmente
+                            pass
+                elif item.is_dir():
+                    # Escaneo recursivo controlado
+                    try:
+                        if os.access(item, os.R_OK):
+                            sub_node = _scan_node(item)
+                            subfolders_list.append(sub_node)
+                            # total_folders es el subdirectorio mismo más todos los subdirectorios dentro de él
+                            total_folders += 1 + sub_node["total_folders"]
+                            total_files += sub_node["total_files"]
+                            total_size += sub_node["total_size"]
+                    except Exception:
+                        # Ignorar subdirectorios ilegibles
+                        pass
+        except PermissionError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No hay permisos de lectura para acceder a {current_path}"
+            )
+            
+        return {
+            "name": name,
+            "absolute_path": str(current_path.resolve()),
+            "files": files_list,
+            "subfolders": subfolders_list,
+            "total_folders": total_folders,
+            "total_files": total_files,
+            "total_size": total_size
+        }
+
+    return _scan_node(path_obj)
