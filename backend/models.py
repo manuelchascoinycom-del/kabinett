@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
+from typing import Optional # Importar Optional
 
 from sqlalchemy import (
     Column,
@@ -123,12 +124,28 @@ class Collection(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("collections.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     documents: Mapped[list[Document]] = relationship(
         secondary=document_collections, back_populates="collections"
+    )
+
+    # CORRECCIÓN:
+    # 1. 'children' no necesita remote_side.
+    children: Mapped[list["Collection"]] = relationship(
+        back_populates="parent",
+        cascade="all, delete-orphan",
+    )
+
+    # 2. 'parent' es el que apunta a la columna 'id' como lado remoto.
+    parent: Mapped[Optional["Collection"]] = relationship(
+        back_populates="children",
+        remote_side=[id], 
     )
 
 

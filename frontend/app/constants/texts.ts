@@ -1,4 +1,4 @@
-export const APP_TEXTS = {
+export const APP_TEXTS = { 
   common: {
     appName: 'Kabinett',
     subtitle: 'Biblioteca Virtual',
@@ -19,6 +19,8 @@ export const APP_TEXTS = {
     composer: 'Compositor',
     customFieldsLabel: 'Campos personalizados',
     customFieldExample: 'Ej: {fieldName}',
+    newSubcollection: 'Nueva Subcolección',
+    insideOf: 'Se creará dentro de:',
   },
   sidebar: {
     collectionsTitle: 'Colecciones',
@@ -46,7 +48,7 @@ export const APP_TEXTS = {
       messagePrefix: '¿Estás seguro de que deseas eliminar permanentemente la partitura',
       cancelBtn: 'Cancelar',
       confirmBtn: 'Eliminar',
-      deletingBtn: 'Eliminando...',
+      deletingBtn: 'Eliminando...', 
     },
     confirmModal: {
       dangerIcon: '⚠️',
@@ -69,7 +71,7 @@ export const APP_TEXTS = {
       deleteFieldTooltip: 'Eliminar campo',
       createNewFieldLabel: 'Crear Nuevo Campo',
       fieldNameLabel: 'Nombre del Campo',
-      fieldNamePlaceholder: 'Ej: Año de Composición, Editorial...',
+      fieldNamePlaceholder: 'Ej: Año de Composición, Editorial...', 
       fieldTypeLabel: 'Tipo de Dato',
       fieldTypeOptions: {
         text: 'Texto',
@@ -121,22 +123,22 @@ export const APP_TEXTS = {
         composerLabel: 'Compositor / Autor',
         composerPlaceholder: 'Compositor',
         tagsLabel: 'Etiquetas (#Tags)',
-        tagsPlaceholder: 'Añadir etiqueta y presionar Enter...',
+        tagsPlaceholder: 'Añadir etiqueta y presionar Enter...', 
         customFieldsLabel: 'Campos personalizados',
         confirmBtn: 'Confirmar y Añadir a Biblioteca',
       },
     },
   },
   tagInput: {
-    placeholderEmpty: 'Escribe una etiqueta y pulsa Enter...',
-    placeholderAdd: '+ Añadir...',
+    placeholderEmpty: 'Escribe una etiqueta y pulsa Enter...', 
+    placeholderAdd: '+ Añadir...', 
     tagPrefix: '#',
     existingLabel: 'Existente',
   },
   searchBar: {
     icon: '🔍',
-    placeholder: 'Buscar por compositor, título, etiquetas o texto interno del PDF...',
-    filtering: 'Filtrando...',
+    placeholder: 'Buscar por compositor, título, etiquetas o texto interno del PDF...', 
+    filtering: 'Filtrando...', 
   },
   documentCard: {
     fileIcon: '📄',
@@ -150,12 +152,12 @@ export const APP_TEXTS = {
     downloadPdfTooltip: 'Descargar archivo PDF',
     downloadPdfIcon: '⬇️',
     downloadPdfBtn: 'Descargar',
-    downloadingPdfBtn: 'Descargando...',
+    downloadingPdfBtn: 'Descargando...', 
     editBtn: 'Editar',
     deleteBtn: 'Eliminar',
     deleteTooltip: 'Eliminar documento del sistema',
     deleteIcon: '🗑️',
-    moveToOption: '📁 Mover a...',
+    moveToOption: '📁 Mover a...', 
   },
   pdfViewer: {
     sheetMusicIcon: '🎼',
@@ -173,7 +175,7 @@ export const APP_TEXTS = {
     closeBtn: '✕ Cerrar',
     exitAtrilBtn: '✕ Salir de Modo Atril',
     exitAtrilTitle: 'Salir de Modo Atril (Esc)',
-    loadingText: 'Cargando partitura...',
+    loadingText: 'Cargando partitura...', 
     errorIcon: '⚠️',
     loadPdfErrorText: 'No se pudo cargar el archivo PDF.',
     loadPdfErrorLog: 'Error al cargar el PDF:',
@@ -193,6 +195,12 @@ export const APP_TEXTS = {
     dropRejectedError: 'Formato no soportado en esta versión',
     rootLibraryTitle: 'Biblioteca Raíz',
     collectionTitlePrefix: 'Colección: ',
+    pagination: {
+      previous: 'Anterior',
+      next: 'Siguiente',
+      page: 'Página',
+      of: 'de',
+    },
   },
   theme: {
     label: 'Apariencia',
@@ -209,7 +217,7 @@ export const APP_TEXTS = {
     usernameLabel: 'Usuario',
     passwordLabel: 'Contraseña',
     submitBtn: 'Entrar',
-    submittingBtn: 'Iniciando sesión...',
+    submittingBtn: 'Iniciando sesión...', 
     usernamePlaceholder: 'admin@kabinett.com',
     passwordPlaceholder: '••••••••',
     invalidCredentialsError: 'Usuario o contraseña incorrectos',
@@ -217,7 +225,7 @@ export const APP_TEXTS = {
     genericError: 'Error al iniciar sesión',
   },
   auth: {
-    loadingSession: 'Cargando sesión...',
+    loadingSession: 'Cargando sesión...', 
     sessionExpired: 'Sesión expirada o no autorizada. Por favor, vuelve a iniciar sesión.',
     errors: {
       useAuthOutsideProvider: 'useAuth debe usarse dentro de un AuthProvider',
@@ -228,7 +236,7 @@ export const APP_TEXTS = {
     pageSubtitle: 'Administra accesos, roles y cuentas activas en la plataforma.',
     backToDashboard: '← Volver al Panel Principal',
     newUserBtn: '+ Nuevo Usuario',
-    searchPlaceholder: 'Buscar por nombre o correo...',
+    searchPlaceholder: 'Buscar por nombre o correo...', 
     allRolesOption: 'Todos los Roles',
     table: {
       headers: {
@@ -247,7 +255,7 @@ export const APP_TEXTS = {
         activate: 'Activar',
         deactivate: 'Desactivar',
       },
-      loading: 'Cargando usuarios...',
+      loading: 'Cargando usuarios...', 
       empty: 'No se encontraron usuarios.',
     },
     pagination: {
@@ -273,7 +281,7 @@ export const APP_TEXTS = {
       roleLabel: 'Rol asignado',
       activeStatusLabel: 'Usuario Activo',
       saveBtn: 'Guardar Usuario',
-      savingBtn: 'Guardando...',
+      savingBtn: 'Guardando...', 
       cancelBtn: 'Cancelar',
     },
     alertModal: {
@@ -305,7 +313,7 @@ export const APP_TEXTS = {
       confirmPasswordLabel: 'Confirmar Nueva Contraseña',
       confirmPasswordPlaceholder: '••••••••',
       saveBtn: 'Actualizar Contraseña',
-      savingBtn: 'Actualizando...',
+      savingBtn: 'Actualizando...', 
       errors: {
         passwordsDoNotMatch: 'Las contraseñas no coinciden.',
         minLength: 'La nueva contraseña debe tener al menos 8 caracteres.',
