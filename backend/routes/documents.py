@@ -7,8 +7,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db, SessionLocal
 import models
-from schemas.document import ConfirmMetadataSchema, DocumentExternalCreate, DocumentResponse
-from services.document_service import register_external_document
+from schemas.document import ConfirmMetadataSchema, DocumentExternalCreate, DocumentResponse, ScanRequest
+from services.document_service import register_external_document, scan_directory_dry_run
 from services.extractor import extract_text_from_first_pages
 from services.ai_service import analyze_document_metadata
 from dependencies import require_roles  # <--- Dependencia de RBAC
@@ -138,6 +138,37 @@ def index_external_document(
         background_tasks=background_tasks
     )
     return new_doc
+
+
+@router.post("/scan-dry-run", status_code=status.HTTP_200_OK)
+def scan_dry_run_endpoint(
+    payload: ScanRequest,
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))
+):
+    """
+    Escanea un directorio de forma recursiva (Dry-Run) sin realizar cambios en la base de datos.
+    Valida la existencia del directorio y retorna la estructura en árbol.
+    """
+    try:
+        result = scan_directory_dry_run(payload.path)
+        return result
+    except HTTPException as e:
+        raise e
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except (ValueError, PermissionError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno del servidor durante el escaneo: {str(e)}"
+        )
 
 
 @router.get("", status_code=status.HTTP_200_OK)

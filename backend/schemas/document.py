@@ -73,3 +73,7 @@ class FilterPayloadSchema(BaseModel):
     custom_fields: Optional[Dict[str, Any]] = {}
     page: Optional[int] = 1
     limit: Optional[int] = 20
+
+
+class ScanRequest(BaseModel):
+    path: str
