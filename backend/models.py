@@ -78,6 +78,11 @@ document_tags = Table(
 )
 
 
+class DocumentStorageType(str, Enum):
+    UPLOAD = "upload"
+    EXTERNAL = "external"
+
+
 class Document(Base):
     __tablename__ = "documents"
 
@@ -85,13 +90,21 @@ class Document(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
-    storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
-    file_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(1024), nullable=True) # Hacer nullable
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True) # Hacer nullable
     status: Mapped[DocumentStatus] = mapped_column(
         SAEnum(DocumentStatus, native_enum=False, length=20),
         nullable=False,
         default=DocumentStatus.UPLOADING,
     )
+    storage_type: Mapped[DocumentStorageType] = mapped_column(
+        SAEnum(DocumentStorageType, native_enum=False, length=20),
+        nullable=False,
+        default=DocumentStorageType.UPLOAD,
+    )
+    absolute_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    relative_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_suggested: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

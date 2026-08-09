@@ -1,3 +1,4 @@
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -13,6 +14,17 @@ config = context.config
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# --- AJUSTE PARA LEER LA URL REAL DE LA BASE DE DATOS ---
+# Opción 1: Si usas una variable de entorno llamada DATABASE_URL
+database_url = os.getenv("DATABASE_URL")
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
+
+# Opción 2 (Alternativa): Si tu app exporta la URL desde un archivo del proyecto, des comenta la siguiente línea:
+# from backend.database import DATABASE_URL  # (ajusta la ruta según tu estructura)
+# config.set_main_option("sqlalchemy.url", DATABASE_URL)
+# -------------------------------------------------------
 
 # add your model's MetaData object here
 # for 'autogenerate' support

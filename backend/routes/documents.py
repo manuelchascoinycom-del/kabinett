@@ -7,7 +7,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db, SessionLocal
 import models
-from schemas.document import ConfirmMetadataSchema
+from schemas.document import ConfirmMetadataSchema, DocumentExternalCreate, DocumentResponse
+from services.document_service import register_external_document
 from services.extractor import extract_text_from_first_pages
 from services.ai_service import analyze_document_metadata
 from dependencies import require_roles  # <--- Dependencia de RBAC
@@ -119,6 +120,24 @@ async def upload_pdf(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/index-external", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+def index_external_document(
+    payload: DocumentExternalCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))
+):
+    """
+    Indexa un documento PDF externo de manera 'in-place' (sin copiar el archivo).
+    """
+    new_doc = register_external_document(
+        db=db,
+        payload=payload,
+        background_tasks=background_tasks
+    )
+    return new_doc
 
 
 @router.get("", status_code=status.HTTP_200_OK)
