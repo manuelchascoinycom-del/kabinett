@@ -139,6 +139,9 @@ export default function Home() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedCustomFilters, setSelectedCustomFilters] = useState<Record<string, string>>({});
 
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
   useEffect(() => {
     const root = document.documentElement;
     const initialMode = (root.dataset.themeMode as ThemeMode) || 'system';
@@ -180,7 +183,7 @@ export default function Home() {
   const fetchCustomFields = async () => {
     try {
       const data = await customFieldsService.getAll();
-      setCustomFields(data);
+      setCustomFields(data as any);
     } catch (e) {
       console.error('Error al cargar campos personalizados:', e);
     }
@@ -696,6 +699,34 @@ export default function Home() {
     }
   };
 
+  const handleSyncCollection = async () => {
+    // Si hay una colección seleccionada sincronizamos por ID, si no, podemos usar un path raíz o la colección actual
+    const targetIdOrPath = selectedCollectionId;
+    if (!targetIdOrPath) {
+      setGlobalError(APP_TEXTS.sync.errorNoCollection);
+      return;
+    }
+
+    try {
+      setIsSyncing(true);
+      setSyncMessage(null);
+      setGlobalError(null);
+
+      const result = await documentService.syncCollection(targetIdOrPath);
+      
+      setSyncMessage(`Sincronización exitosa: ${result.added} archivos añadidos, ${result.removed} referencias eliminadas.`);
+      
+      // Actualizamos los documentos y colecciones
+      await fetchDocuments();
+      await fetchCollections();
+    } catch (error: any) {
+      console.error('Error al sincronizar:', error);
+      setGlobalError(error.message || 'Error al ejecutar la sincronización del directorio.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const parentCollectionName = useMemo(() => {
     if (!modalParentId) return null;
     
@@ -790,6 +821,30 @@ export default function Home() {
               {globalError}
             </div>
           )}
+
+          <HasRole canEdit>
+            <div className="my-6 p-4 rounded-xl bg-[var(--surface)] border border-[color:var(--border-color)] space-y-3">
+              <h4 className="text-xs font-bold text-[color:var(--text-strong)] uppercase tracking-wider">
+                {APP_TEXTS.sync.title}
+              </h4>
+              <p className="text-xs text-[color:var(--text-secondary)]">
+                {APP_TEXTS.sync.description}
+              </p>
+              <button
+                type="button"
+                onClick={handleSyncCollection}
+                disabled={isSyncing || !selectedCollectionId}
+                className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+              >
+                {isSyncing ? APP_TEXTS.sync.syncingBtn : APP_TEXTS.sync.syncBtn}
+              </button>
+              {syncMessage && (
+                <div className="p-2 bg-emerald-950/40 border border-emerald-800 text-emerald-400 text-xs rounded-lg">
+                  {syncMessage}
+                </div>
+              )}
+            </div>
+          </HasRole>
 
           <HasRole canEdit>
             <UploadQueue

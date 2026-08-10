@@ -387,3 +387,165 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, ta
         "errors": errors_list,
         "task_id": task_id
     }
+
+
+def sync_directory_service(root_path: str, db: Session) -> dict:
+    """
+    Sincroniza el directorio físico con la base de datos de manera recursiva:
+    1. Escanea el root_path físico para obtener todos los archivos PDF actuales.
+    2. Consulta en la BD los documentos de tipo EXTERNAL cuyo path esté dentro de root_path.
+    3. Compara listas:
+        - Si falta en la BD, se indexa y se guarda.
+        - Si está en la BD pero no existe físicamente, se elimina/desactiva de la BD.
+    4. Devuelve un resumen {"added": int, "removed": int}.
+    """
+    root_path_obj = Path(root_path).resolve()
+
+    if not root_path_obj.exists() or not root_path_obj.is_dir():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"La ruta de origen no existe o no es un directorio: {root_path}"
+        )
+    if not os.access(root_path_obj, os.R_OK):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No hay permisos de lectura para el directorio especificado: {root_path}"
+        )
+
+    # 1. Escaneo físico recursivo de PDFs
+    physical_paths = set()
+
+    def safe_scan(current_dir: Path):
+        try:
+            with os.scandir(current_dir) as entries:
+                for entry in entries:
+                    if entry.name.startswith('.'):
+                        continue
+                    item_path = Path(entry.path)
+                    if entry.is_dir(follow_symlinks=False):
+                        safe_scan(item_path)
+                    elif entry.is_file(follow_symlinks=False) and item_path.suffix.lower() == '.pdf':
+                        try:
+                            if os.access(item_path, os.R_OK):
+                                abs_p = os.path.normpath(str(item_path.resolve()))
+                                physical_paths.add(abs_p)
+                        except Exception:
+                            pass
+        except Exception as scan_err:
+            logger.warning(f"No se pudo leer el directorio {current_dir}: {scan_err}")
+
+    safe_scan(root_path_obj)
+
+    # 2. Obtener documentos en BD bajo el root_path
+    db_docs = db.query(models.Document).filter(
+        models.Document.storage_type == models.DocumentStorageType.EXTERNAL
+    ).all()
+
+    docs_in_dir = []
+    for doc in db_docs:
+        if doc.absolute_path:
+            norm_doc_path = os.path.normpath(doc.absolute_path)
+            try:
+                Path(norm_doc_path).relative_to(root_path_obj)
+                docs_in_dir.append(doc)
+            except ValueError:
+                pass
+
+    db_paths_map = {os.path.normpath(doc.absolute_path): doc for doc in docs_in_dir if doc.absolute_path}
+
+    added_count = 0
+    removed_count = 0
+
+    # 3. Eliminar huérfanos (BD records que no existen físicamente)
+    to_remove = []
+    for db_path, doc in db_paths_map.items():
+        if db_path not in physical_paths:
+            to_remove.append(doc)
+
+    for doc in to_remove:
+        db.delete(doc)
+        removed_count += 1
+
+    # 4. Añadir nuevos (Archivos físicos que no están en BD)
+    to_add = []
+    for phys_path in physical_paths:
+        if phys_path not in db_paths_map:
+            to_add.append(phys_path)
+
+    if to_add:
+        collections_cache = {}
+
+        # CORRECCIÓN: Comprobar si ya existe una colección registrada para el root_path actual
+        existing_root_col = db.query(models.Collection).filter(
+            models.Collection.description == f"Colección creada automáticamente para la ruta: {root_path_obj}"
+        ).first()
+        
+        if existing_root_col:
+            collections_cache[root_path_obj] = existing_root_col
+
+        def get_or_create_collection_for_path(folder_path: Path) -> models.Collection:
+            folder_path = folder_path.resolve()
+            if folder_path in collections_cache:
+                return collections_cache[folder_path]
+                
+            parent_collection = None
+            if folder_path != root_path_obj and folder_path.parent:
+                try:
+                    folder_path.parent.relative_to(root_path_obj)
+                    parent_collection = get_or_create_collection_for_path(folder_path.parent)
+                except ValueError:
+                    pass
+                
+            parent_id = parent_collection.id if parent_collection else None
+            collection_name = folder_path.name
+            if folder_path == root_path_obj:
+                collection_name = folder_path.name or "Sincronizacion Externa"
+                
+            existing_col = db.query(models.Collection).filter(
+                models.Collection.name == collection_name,
+                models.Collection.parent_id == parent_id
+            ).first()
+            
+            if existing_col:
+                collections_cache[folder_path] = existing_col
+                return existing_col
+                
+            new_col = models.Collection(
+                name=collection_name,
+                parent_id=parent_id,
+                description=f"Colección creada automáticamente para la ruta: {folder_path}"
+            )
+            db.add(new_col)
+            db.flush()
+            collections_cache[folder_path] = new_col
+            return new_col
+
+        for phys_path in to_add:
+            phys_path_obj = Path(phys_path)
+            file_size = phys_path_obj.stat().st_size
+            try:
+                relative_path = str(phys_path_obj.relative_to(root_path_obj))
+            except ValueError:
+                relative_path = phys_path_obj.name
+                
+            new_doc = models.Document(
+                filename=phys_path_obj.name,
+                storage_path=phys_path,
+                file_size=file_size,
+                status=models.DocumentStatus.READY,
+                storage_type=models.DocumentStorageType.EXTERNAL,
+                absolute_path=phys_path,
+                relative_path=relative_path
+            )
+            
+            parent_dir = phys_path_obj.parent
+            collection = get_or_create_collection_for_path(parent_dir)
+            if collection:
+                new_doc.collections.append(collection)
+                
+            db.add(new_doc)
+            added_count += 1
+
+    db.commit()
+
+    return {"added": added_count, "removed": removed_count}

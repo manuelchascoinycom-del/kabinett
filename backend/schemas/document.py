@@ -79,6 +79,11 @@ class ScanRequest(BaseModel):
     path: str
 
 
+class SyncRequest(BaseModel):
+    folder_path: Optional[str] = None
+    collection_id: Optional[str] = None
+
+
 class IngestStatusResponse(BaseModel):
     status: str
     total_items: int

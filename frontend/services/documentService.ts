@@ -96,4 +96,17 @@ export const documentService = {
       method: 'GET',
     });
   },
+
+  // Sincronizar directorio o colección externa
+  syncCollection: async (pathOrId: string): Promise<{ added: number; removed: number }> => {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pathOrId);
+    const body = isUuid
+      ? { collection_id: pathOrId }
+      : { folder_path: pathOrId };
+
+    return fetchApi<{ added: number; removed: number }>('/documents/sync', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
 };

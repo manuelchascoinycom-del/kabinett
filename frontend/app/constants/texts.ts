@@ -343,4 +343,11 @@ export const APP_TEXTS = {
       failed: 'Finalizado con errores',
     },
   },
+  sync: {
+    title: "Sincronización y Re-escaneo",
+    description: "Vuelve a inspeccionar la colección seleccionada para detectar nuevas partituras o limpiar archivos externos eliminados.",
+    syncBtn: "Sincronizar Colección Seleccionada",
+    syncingBtn: "Sincronizando...",
+    errorNoCollection: "Por favor, selecciona una colección o carpeta específica para sincronizar.",
+  },
 } as const;
