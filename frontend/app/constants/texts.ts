@@ -1,4 +1,4 @@
-export const APP_TEXTS = { 
+export const APP_TEXTS = {
   common: {
     appName: 'Kabinett',
     subtitle: 'Biblioteca Virtual',
@@ -202,6 +202,12 @@ export const APP_TEXTS = {
       of: 'de',
     },
   },
+  bulkIngest: {
+    title: 'Importación Masiva de Directorio',
+    placeholder: 'Ruta absoluta del servidor o directorio...',
+    submitBtn: 'Importar',
+    submittingBtn: 'Iniciando...',
+  },
   theme: {
     label: 'Apariencia',
     light: 'Claro',
@@ -290,7 +296,6 @@ export const APP_TEXTS = {
       understandBtn: 'Entendido',
     },
   },
-  // En app/constants/texts.ts -> agregar dentro de APP_TEXTS:
   profile: {
     title: 'Mi Perfil',
     subtitle: 'Consulta tus datos personales y gestiona la seguridad de tu cuenta.',
@@ -320,6 +325,22 @@ export const APP_TEXTS = {
         defaultError: 'Error al cambiar la contraseña.',
       },
       successMessage: 'Contraseña actualizada exitosamente.',
+    },
+  },
+  ingestModal: {
+    title: 'Importación de Archivos',
+    taskIdLabel: 'ID de Tarea:',
+    processedLabel: 'Procesados:',
+    ofLabel: 'de',
+    issuesLabel: 'Incidencias de lectura',
+    hideBackgroundBtn: 'Ocultar en segundo plano',
+    closeBtn: 'Cerrar',
+    defaultErrorMsg: 'Error al conectar con el servidor',
+    status: {
+      pending: 'Pendiente...',
+      processing: 'Procesando archivos...',
+      completed: 'Proceso completado',
+      failed: 'Finalizado con errores',
     },
   },
 } as const;

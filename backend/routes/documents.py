@@ -7,8 +7,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db, SessionLocal
 import models
-from schemas.document import ConfirmMetadataSchema, DocumentExternalCreate, DocumentResponse, ScanRequest
-from services.document_service import register_external_document, scan_directory_dry_run
+from schemas.document import ConfirmMetadataSchema, DocumentExternalCreate, DocumentResponse, ScanRequest, IngestStatusResponse
+from services.document_service import register_external_document, scan_directory_dry_run, process_bulk_ingestion
+from services.task_tracker import task_tracker
 from services.extractor import extract_text_from_first_pages
 from services.ai_service import analyze_document_metadata
 from dependencies import require_roles  # <--- Dependencia de RBAC
@@ -431,3 +432,69 @@ async def delete_document(
     db.delete(doc)
     db.commit()
     return None
+
+@router.post("/bulk-ingest", status_code=status.HTTP_200_OK)
+def bulk_ingest_documents(
+    payload: ScanRequest,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))
+):
+    """
+    Inicia el proceso de ingesta masiva de documentos de forma asíncrona a partir de un directorio.
+    """
+    try:
+        task_id = str(uuid.uuid4())
+        
+        # 1. Registrar la tarea inmediatamente
+        task_tracker.create_task(task_id, total_items=0, status="in_progress")
+
+        # 2. Función envolvente segura con manejo de excepciones globales y logs
+        def background_wrapper(path: str, tid: str):
+            db = SessionLocal()
+            try:
+                print(f"🚀 [Background] Hilo iniciado para la ruta: {path}")
+                process_bulk_ingestion(root_path=path, db=db, batch_size=50, task_id=tid)
+                print(f"✅ [Background] Hilo completado con éxito para la tarea: {tid}")
+            except Exception as e:
+                print(f"🚨 [Background] EXCEPCIÓN NO CONTROLADA en la tarea {tid}: {str(e)}")
+                task_tracker.update_task(
+                    tid,
+                    status="failed",
+                    errors=[f"Error crítico de ejecución: {str(e)}"]
+                )
+            finally:
+                db.close()
+
+        # 3. Lanzar la tarea en segundo plano
+        background_tasks.add_task(background_wrapper, payload.path, task_id)
+
+        return {
+            "task_id": task_id,
+            "message": "Ingesta masiva iniciada correctamente."
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al iniciar la ingesta masiva: {str(e)}"
+        )
+    
+@router.get("/ingest-status/{task_id}", response_model=IngestStatusResponse, status_code=status.HTTP_200_OK)
+def get_ingest_status(
+    task_id: str,
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
+):
+    """
+    Obtiene el estado actual del progreso de una tarea de ingesta asíncrona.
+    Si la tarea no se encuentra (por un reinicio del servidor), devuelve un estado seguro.
+    """
+    task = task_tracker.get_task(task_id)
+    if not task:
+        # Evita que el frontend colapse por un 404 si el servidor se reinició en caliente
+        return {
+            "status": "completed",
+            "total_items": 0,
+            "processed_items": 0,
+            "percentage": 100.0,
+            "errors": ["La tarea ya no está activa en memoria (es posible que el servidor se haya reiniciado)."]
+        }
+    return task

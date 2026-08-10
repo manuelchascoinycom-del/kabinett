@@ -1,11 +1,12 @@
 import os
 import logging
 from pathlib import Path
-from typing import Union, Dict, Any
+from typing import Union, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status, BackgroundTasks
 import models
 from schemas.document import DocumentExternalCreate
+from services.task_tracker import task_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -165,49 +166,49 @@ def scan_directory_dry_run(path: Union[str, Path]) -> Dict[str, Any]:
     return _scan_node(path_obj)
 
 
-def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50) -> Dict[str, Any]:
+def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, task_id: Optional[str] = None) -> Dict[str, Any]:
     """
-    Recorre de forma recursiva el directorio raíz `root_path` y registra de manera asíncrona
-    los documentos PDF encontrados como almacenamiento externo, organizándolos en colecciones
-    que replican la estructura de carpetas.
-    Procesa en lotes (batches) para optimizar las transacciones.
+    Recorre de forma recursiva y segura el directorio raíz `root_path` optimizando I/O
+    para evitar bloqueos en unidades virtuales/externas, registrando los PDF encontrados.
     """
     root_path_obj = Path(root_path).resolve()
     
+    if not task_id:
+        import uuid
+        task_id = str(uuid.uuid4())
+        
+    task_tracker.create_task(task_id, total_items=0, status="in_progress")
+    
     if not root_path_obj.exists() or not root_path_obj.is_dir():
+        err_msg = f"La ruta de origen no existe o no es un directorio: {root_path}"
+        task_tracker.update_task(
+            task_id,
+            status="failed",
+            errors=[err_msg]
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"La ruta de origen no existe o no es un directorio: {root_path}"
+            detail=err_msg
         )
         
-    logger.info(f"Iniciando ingesta masiva desde {root_path_obj} con tamaño de lote {batch_size}")
+    logger.info(f"Iniciando escaneo optimizado desde {root_path_obj}")
     
-    # Caché para evitar consultas redundantes y mantener la jerarquía de colecciones en memoria durante el proceso.
-    # Clave: ruta absoluta de la carpeta (Path), Valor: objeto Collection
     collections_cache = {}
     
-    # Función auxiliar para asegurar que una carpeta y sus ancestros (hasta el root_path)
-    # tengan su correspondiente colección creada y vinculada en la base de datos.
     def get_or_create_collection_for_path(folder_path: Path) -> models.Collection:
         folder_path = folder_path.resolve()
         if folder_path in collections_cache:
             return collections_cache[folder_path]
             
-        # Determinar la colección padre buscando el ancestro
         parent_collection = None
         if folder_path != root_path_obj and folder_path.parent:
-            # Solo buscar parent si el padre sigue dentro de la jerarquía de root_path_obj
             try:
-                # Comprobar si folder_path es relativo a root_path_obj
                 folder_path.parent.relative_to(root_path_obj)
                 parent_collection = get_or_create_collection_for_path(folder_path.parent)
             except ValueError:
                 pass
             
-        # Determinar el parent_id
         parent_id = parent_collection.id if parent_collection else None
-        
-        # El nombre de la colección será el nombre de la carpeta
         collection_name = folder_path.name
         if folder_path == root_path_obj:
             collection_name = folder_path.name or "Ingesta Masiva"
@@ -221,71 +222,79 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50) ->
             collections_cache[folder_path] = existing_col
             return existing_col
             
-        # Si no existe, crearla
         new_col = models.Collection(
             name=collection_name,
             parent_id=parent_id,
             description=f"Colección creada automáticamente para la ruta: {folder_path}"
         )
         db.add(new_col)
-        db.flush()  # Para obtener el ID generado sin comprometer la transacción completa
+        db.flush()
         collections_cache[folder_path] = new_col
         return new_col
 
-    # Recorrer el directorio recursivamente y agrupar archivos por procesar
-    # Guardamos tuplas de (archivo_pdf_path, coleccion_asociada)
+    # Recorrido recursivo seguro y tolerante a fallos de I/O en unidades externas
     pending_files = []
     
-    for dirpath, dirnames, filenames in os.walk(root_path_obj):
-        # Saltar carpetas ocultas
-        dirnames[:] = [d for d in dirnames if not d.startswith('.')]
-        
-        current_dir_path = Path(dirpath)
-        
-        # Filtrar archivos PDF
-        pdf_files = [f for f in filenames if f.lower().endswith('.pdf') and not f.startswith('.')]
-        if not pdf_files:
-            continue
-            
-        # Asegurar la colección para esta carpeta
+    def safe_scan(current_dir: Path):
         try:
-            collection = get_or_create_collection_for_path(current_dir_path)
-        except Exception as e:
-            logger.error(f"Error asegurando colección para {current_dir_path}: {e}")
-            continue
-            
-        for pdf_file in pdf_files:
-            pdf_path = current_dir_path / pdf_file
-            pending_files.append((pdf_path, collection))
+            with os.scandir(current_dir) as entries:
+                for entry in entries:
+                    if entry.name.startswith('.'):
+                        continue
+                    item_path = Path(entry.path)
+                    if entry.is_dir(follow_symlinks=False):
+                        safe_scan(item_path)
+                    elif entry.is_file(follow_symlinks=False) and item_path.suffix.lower() == '.pdf':
+                        try:
+                            if os.access(item_path, os.R_OK):
+                                parent_dir = item_path.parent
+                                collection = get_or_create_collection_for_path(parent_dir)
+                                pending_files.append((item_path, collection))
+                        except Exception:
+                            pass
+        except Exception as scan_err:
+            logger.warning(f"No se pudo leer el directorio {current_dir}: {scan_err}")
 
+    safe_scan(root_path_obj)
     total_detected = len(pending_files)
-    logger.info(f"Se detectaron {total_detected} archivos PDF para ingesta.")
+    
+    # Actualizar total de ítems en el tracker
+    task_tracker.update_task(task_id, total_items=total_detected)
+    logger.info(f"Escaneo finalizado. Se detectaron {total_detected} archivos PDF.")
+
+    if total_detected == 0:
+        task_tracker.update_task(task_id, status="completed", processed_items=0)
+        return {
+            "total_detected": 0,
+            "successful": 0,
+            "failed": 0,
+            "errors": [],
+            "task_id": task_id
+        }
     
     successful_count = 0
     failed_count = 0
     errors_list = []
     
-    # Procesar por lotes (batches)
+    # Procesamiento por lotes
     for i in range(0, len(pending_files), batch_size):
         batch = pending_files[i : i + batch_size]
         
         try:
-            # Usar savepoint anidado para el lote para que podamos revertir solo el lote si falla
             with db.begin_nested():
                 batch_documents = []
                 for pdf_path, collection in batch:
                     abs_path = os.path.normpath(str(pdf_path.resolve()))
                     
-                    # Validar si ya existe el documento por su absolute_path para evitar conflictos
                     existing = db.query(models.Document).filter(
                         models.Document.absolute_path == abs_path
                     ).first()
                     
                     if existing:
-                        # Si ya existe, simplemente lo vinculamos a la colección si no lo está
                         if collection and collection not in existing.collections:
                             existing.collections.append(collection)
                         successful_count += 1
+                        task_tracker.update_task(task_id, processed_items=successful_count + failed_count)
                         continue
                         
                     file_size = pdf_path.stat().st_size
@@ -312,12 +321,13 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50) ->
                 
                 db.flush()
                 successful_count += len(batch_documents)
+                task_tracker.update_task(task_id, processed_items=successful_count + failed_count)
                 
             db.commit()
             
         except Exception as batch_error:
             db.rollback()
-            logger.warning(f"Fallo en lote {i//batch_size + 1}. Procesando elementos individualmente. Error: {batch_error}")
+            logger.warning(f"Fallo en lote. Procesando individualmente. Error: {batch_error}")
             
             for pdf_path, collection in batch:
                 try:
@@ -331,6 +341,7 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50) ->
                             if collection and collection not in existing.collections:
                                 existing.collections.append(collection)
                             successful_count += 1
+                            task_tracker.update_task(task_id, processed_items=successful_count + failed_count)
                             continue
                             
                         file_size = pdf_path.stat().st_size
@@ -356,17 +367,23 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50) ->
                         db.flush()
                     db.commit()
                     successful_count += 1
+                    task_tracker.update_task(task_id, processed_items=successful_count + failed_count)
                 except Exception as single_error:
                     db.rollback()
                     failed_count += 1
-                    err_msg = f"Error al procesar archivo individual {pdf_path}: {single_error}"
+                    err_msg = f"Error en archivo {pdf_path.name}: {str(single_error)}"
                     logger.error(err_msg)
-                    errors_list.append({"file": str(pdf_path), "error": str(single_error)})
+                    errors_list.append(err_msg) # <-- IMPORTANTE: Guardar como string plano para cumplir con IngestStatusResponse
+                    task_tracker.update_task(task_id, add_errors=[err_msg], processed_items=successful_count + failed_count)
                     
-    logger.info(f"Ingesta masiva completada. Éxito: {successful_count}, Errores: {failed_count}")
+    final_status = "completed" if not errors_list else "completed_with_errors"
+    task_tracker.update_task(task_id, status=final_status, processed_items=successful_count + failed_count, errors=errors_list)
+
+    logger.info(f"Ingesta masiva finalizada. Éxito: {successful_count}, Errores: {failed_count}")
     return {
         "total_detected": total_detected,
         "successful": successful_count,
         "failed": failed_count,
-        "errors": errors_list
+        "errors": errors_list,
+        "task_id": task_id
     }
