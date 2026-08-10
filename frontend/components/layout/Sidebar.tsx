@@ -55,12 +55,11 @@ const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
     <div className="w-full">
       <div
         onClick={() => onSelect(collection.id)}
-        className={`group w-full px-3 py-1.5 rounded-lg text-xs font-medium flex justify-between items-center cursor-pointer transition-all ${
+        className={`group w-full px-2 py-1.5 rounded-lg text-xs font-medium flex justify-between items-center cursor-pointer transition-all ${
           isSelected
             ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
             : 'text-[color:var(--text-muted)] hover:bg-[var(--panel-hover)] hover:text-[color:var(--text-secondary)]'
         }`}
-        style={{ paddingLeft: `${(depth * 12) + 12}px` }}
       >
         <div className="flex items-center gap-1.5 truncate pr-1">
           {hasChildren ? (
@@ -77,7 +76,7 @@ const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
           ) : (
             <span className="w-4" />
           )}
-          <span className="truncate">
+          <span className="truncate" title={collection.name}>
             {APP_TEXTS.sidebar.collectionIcon} {collection.name}
           </span>
         </div>
@@ -94,7 +93,7 @@ const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
                   setIsOpen(true);
                   onAddSubcollection(collection.id);
                 }}
-                className="opacity-0 group-hover:opacity-100 text-[color:var(--text-subtle)] hover:text-emerald-500 p-0.5 transition-all text-lg leading-none flex items-center justify-center"
+                className="hidden group-hover:flex text-[color:var(--text-subtle)] hover:text-emerald-500 p-0.5 transition-all text-lg leading-none items-center justify-center"
                 title="Añadir subcolección"
               >
                 +
@@ -110,7 +109,7 @@ const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
                   e.stopPropagation();
                   onDelete(collection.id);
                 }}
-                className="opacity-0 group-hover:opacity-100 text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] p-0.5 transition-all text-xs"
+                className="hidden group-hover:flex text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] p-0.5 transition-all text-xs items-center justify-center"
                 title={APP_TEXTS.sidebar.deleteCollectionTooltip}
               >
                 {APP_TEXTS.sidebar.deleteIcon}
@@ -125,7 +124,7 @@ const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
       </div>
 
       {hasChildren && isOpen && (
-        <div className="space-y-1 mt-1">
+        <div className="space-y-1 mt-1 ml-3 pl-2 border-l border-[color:var(--border-color)]/30">
           {collection.children?.map((child) => (
             <CollectionTreeItem
               key={child.id}
@@ -172,25 +171,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {APP_TEXTS.common.appName}
           </h1>
           <p className="text-[11px] text-[color:var(--text-muted)]">{APP_TEXTS.common.subtitle}</p>
-        </div>
-
-        <div className="space-y-2">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--text-muted)]">
-            {TT.label}
-          </span>
-          <div className="theme-segment grid grid-cols-3 gap-1 rounded-xl p-1">
-            {(['light', 'dark', 'system'] as ThemeMode[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                data-active={mounted && themeMode === mode}
-                onClick={() => onThemeModeChange(mode)}
-                className="rounded-lg px-2 py-1.5 text-[11px] font-semibold"
-              >
-                {TT[mode]}
-              </button>
-            ))}
-          </div>
         </div>
 
         <nav className="space-y-4">
@@ -272,6 +252,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {APP_TEXTS.sidebar.customFieldsBtn}
           </button>
         </HasRole>
+
+        <div className="pt-2 pb-1 space-y-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--text-muted)] block px-1">
+            {TT.label}
+          </span>
+          <div className="theme-segment grid grid-cols-3 gap-1 rounded-xl p-1">
+            {(['light', 'dark', 'system'] as ThemeMode[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                data-active={mounted && themeMode === mode}
+                onClick={() => onThemeModeChange(mode)}
+                className="rounded-lg px-1.5 py-1 text-[10px] font-semibold"
+              >
+                {TT[mode]}
+              </button>
+            ))}
+          </div>
+        </div>
         
         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--panel-bg)] border border-[color:var(--border-color)]">
           <div className="flex flex-col">
