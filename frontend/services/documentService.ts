@@ -63,6 +63,18 @@ export const documentService = {
     return fetchApi<any>(`/documents/${documentId}/status`);
   },
 
+  async bulkIngest(path: string) {
+    return fetchApi<any>('/documents/bulk-ingest', { // O la ruta exacta que use tu backend
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+  },
+
+  // Obtener estado de la ingesta de una tarea
+  getIngestStatus: async (taskId: string): Promise<any> => {
+    return fetchApi<any>(`/documents/ingest-status/${taskId}`);
+  },
+
   // Confirmar metadatos
   confirmMetadata: async (documentId: string, payload: any): Promise<any> => {
     return fetchApi<any>(`/documents/${documentId}/confirm-metadata`, {

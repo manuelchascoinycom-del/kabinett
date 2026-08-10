@@ -16,6 +16,7 @@ import { SearchBar } from '@/components/documents/SearchBar';
 import { Dropzone } from '@/components/upload/Dropzone';
 import { ConfirmModal } from '@/components/modals/ConfirmModal';
 import { HasRole } from '@/components/auth/HasRole';
+import { IngestProgressModal } from '@/components/modals/IngestProgressModal';
 
 import { collectionService } from '@/services/collectionService';
 import { documentService, BackendDocument } from '@/services/documentService';
@@ -56,7 +57,7 @@ interface Collection {
   name: string;
   description?: string;
   document_count: number;
-  children?: Collection[]; // Opcional, por si tu backend devuelve un árbol
+  children?: Collection[];
 }
 
 interface CustomField {
@@ -88,21 +89,19 @@ export default function Home() {
     return (document.documentElement.dataset.themeMode as ThemeMode) || 'system';
   });
 
-  // Estados de Paginación
+  const [showIngestModal, setShowIngestModal] = useState(false);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [ingestPath, setIngestPath] = useState('');
+  const [isIngesting, setIsIngesting] = useState(false);
+
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage] = useState<number>(20);
 
-  // Cola de Subida Local
   const [uploadQueueItems, setUploadQueueItems] = useState<UploadItem[]>([]);
-
-  // Documentos en la Biblioteca Raíz
   const [documents, setDocuments] = useState<any[]>([]);
-
-  // Raw global para facetas
   const [rawGlobalDocuments, setRawGlobalDocuments] = useState<UploadItem[]>([]);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
-  // Control de Modal de Edición
   const [editingItem, setEditingItem] = useState<UploadItem | null>(null);
   const [editForm, setEditForm] = useState<{
     title: string;
@@ -116,32 +115,26 @@ export default function Home() {
     custom: {},
   });
 
-  // Visor Nativo de PDF
   const [viewingDocument, setViewingDocument] = useState<{ id: string; title: string } | null>(null);
 
-  // Buscador Global
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
-  // Estado de Colecciones
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
-  const [modalParentId, setModalParentId] = useState<string | undefined>(undefined); // NUEVO ESTADO PARA EL PADRE
+  const [modalParentId, setModalParentId] = useState<string | undefined>(undefined);
   const [totalGlobalDocuments, setTotalGlobalDocuments] = useState<number>(0);
 
-  // Campos Personalizados
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState<'text' | 'number' | 'select' | 'boolean'>('text');
   const [newFieldOptions, setNewFieldOptions] = useState('');
 
-  // Etiquetas Globales
   const [globalTags, setGlobalTags] = useState<string[]>([]);
 
-  // Filtros Facetados
   const [selectedComposers, setSelectedComposers] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedCustomFilters, setSelectedCustomFilters] = useState<Record<string, string>>({});
@@ -195,8 +188,11 @@ export default function Home() {
 
   const fetchGlobalTags = async () => {
     try {
-      const data = await tagService.getAll();
-      setGlobalTags(data);
+      const data: any = await tagService.getAll();
+      const tagsArray = Array.isArray(data)
+        ? data.map((t: any) => (typeof t === 'string' ? t : t.name || ''))
+        : [];
+      setGlobalTags(tagsArray);
     } catch (e) {
       console.error('Error al cargar tags globales:', e);
     }
@@ -257,7 +253,6 @@ export default function Home() {
     fetchDocuments();
   }, [fetchDocuments]);
 
-  // Resetea la página a 1 cada vez que se modifican los filtros o la búsqueda
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters]);
@@ -572,7 +567,6 @@ export default function Home() {
     searchQuery.trim().length > 0 ||
     selectedCollectionId !== null;
 
-  // NUEVO: Pasa el parentId al crear
   const handleCreateCollection = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCollectionName.trim()) return;
@@ -580,9 +574,9 @@ export default function Home() {
     try {
       await collectionService.create(newCollectionName, modalParentId);
       setNewCollectionName('');
-      setModalParentId(undefined); // Resetear estado para evitar bugs en futuras creaciones
+      setModalParentId(undefined);
       setShowNewCollectionModal(false);
-      fetchCollections(); // Refrescar el árbol
+      fetchCollections();
     } catch (e) {
       console.error('Error al crear colección:', e);
     }
@@ -682,7 +676,26 @@ export default function Home() {
     }
   };
 
-  // NUEVO: Función auxiliar para buscar el nombre de la colección padre en un array (o árbol) y pasárselo al Modal visualmente
+  const handleBulkIngestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ingestPath.trim()) return;
+
+    try {
+      setIsIngesting(true);
+      const response = await documentService.bulkIngest(ingestPath.trim());
+      const taskId = response.task_id || response.id; 
+      if (taskId) {
+        setCurrentTaskId(taskId);
+        setShowIngestModal(true);
+        setIngestPath('');
+      }
+    } catch (error) {
+      console.error('Error al iniciar la ingesta masiva:', error);
+    } finally {
+      setIsIngesting(false);
+    }
+  };
+
   const parentCollectionName = useMemo(() => {
     if (!modalParentId) return null;
     
@@ -709,7 +722,6 @@ export default function Home() {
         collections={collections}
         themeMode={themeMode}
         onThemeModeChange={handleThemeModeChange}
-        // NUEVO: Guardar el parentId que nos pasa el sidebar (o undefined si es raíz)
         onOpenNewCollectionModal={(parentId) => {
           setModalParentId(parentId);
           setShowNewCollectionModal(true);
@@ -747,6 +759,30 @@ export default function Home() {
               getInputProps={getInputProps}
               isDragActive={isDragActive}
             />
+          </HasRole>
+
+          <HasRole canEdit>
+            <div className="my-6 p-4 rounded-xl bg-[var(--surface)] border border-[color:var(--border-color)] space-y-3">
+              <h4 className="text-xs font-bold text-[color:var(--text-strong)] uppercase tracking-wider">
+                {APP_TEXTS.bulkIngest.title}
+              </h4>
+              <form onSubmit={handleBulkIngestSubmit} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder={APP_TEXTS.bulkIngest.placeholder}
+                  value={ingestPath}
+                  onChange={(e) => setIngestPath(e.target.value)}
+                  className="flex-1 px-3 py-2 text-xs rounded-lg bg-[var(--app-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  type="submit"
+                  disabled={isIngesting || !ingestPath.trim()}
+                  className="px-4 py-2 text-xs font-bold rounded-lg bg-amber-500 text-slate-950 hover:bg-amber-400 disabled:opacity-50 transition-colors"
+                >
+                  {isIngesting ? APP_TEXTS.bulkIngest.submittingBtn : APP_TEXTS.bulkIngest.submitBtn}
+                </button>
+              </form>
+            </div>
           </HasRole>
 
           {globalError && (
@@ -790,7 +826,6 @@ export default function Home() {
               />
             ))}
 
-            {/* Controles de Paginación */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-6 pt-4 border-t border-[color:var(--border-color)]">
                 <button
@@ -839,13 +874,23 @@ export default function Home() {
         isOpen={showNewCollectionModal}
         newCollectionName={newCollectionName}
         setNewCollectionName={setNewCollectionName}
-        // NUEVO: Limpiamos el estado si el usuario cierra el modal para evitar que la próxima vez cree una subcolección por error
         onClose={() => {
           setShowNewCollectionModal(false);
           setModalParentId(undefined);
         }}
         onSubmit={handleCreateCollection}
-        parentCollectionName={parentCollectionName} // Opcional: si usas la versión actualizada del Modal que te pasé
+        parentCollectionName={parentCollectionName}
+      />
+
+      {/* Añadir este modal al final de los modales en app/page.tsx */}
+      <ConfirmModal
+        isOpen={!!collectionToDelete}
+        title={APP_TEXTS.modals.deleteCollection.title}
+        message={APP_TEXTS.modals.deleteCollection.message}
+        confirmText={APP_TEXTS.modals.deleteCollection.confirmBtn}
+        cancelText={APP_TEXTS.common.cancel}
+        onConfirm={handleConfirmDeleteCollection}
+        onClose={() => setCollectionToDelete(null)}
       />
 
       <CustomFieldsModal
@@ -862,14 +907,16 @@ export default function Home() {
         onSubmit={handleCreateCustomField}
       />
 
-      <ConfirmModal
-        isOpen={!!collectionToDelete}
-        title={APP_TEXTS.modals.deleteCollection.title}
-        message={APP_TEXTS.modals.deleteCollection.message}
-        confirmText={APP_TEXTS.modals.deleteCollection.confirmBtn}
-        isDanger={true}
-        onConfirm={handleConfirmDeleteCollection}
-        onClose={() => setCollectionToDelete(null)}
+      <IngestProgressModal
+        isOpen={showIngestModal}
+        taskId={currentTaskId}
+        onClose={() => {
+          setShowIngestModal(false);
+          setCurrentTaskId(null);
+        }}
+        onSuccess={() => {
+          fetchDocuments();
+        }}
       />
     </div>
   );

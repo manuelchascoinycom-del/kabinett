@@ -77,3 +77,11 @@ class FilterPayloadSchema(BaseModel):
 
 class ScanRequest(BaseModel):
     path: str
+
+
+class IngestStatusResponse(BaseModel):
+    status: str
+    total_items: int
+    processed_items: int
+    percentage: float
+    errors: List[str]
