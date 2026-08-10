@@ -7,8 +7,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db, SessionLocal
 import models
-from schemas.document import ConfirmMetadataSchema, DocumentExternalCreate, DocumentResponse, ScanRequest, IngestStatusResponse
-from services.document_service import register_external_document, scan_directory_dry_run, process_bulk_ingestion
+from schemas.document import ConfirmMetadataSchema, DocumentExternalCreate, DocumentResponse, ScanRequest, IngestStatusResponse, SyncRequest
+from services.document_service import register_external_document, scan_directory_dry_run, process_bulk_ingestion, sync_directory_service
 from services.task_tracker import task_tracker
 from services.extractor import extract_text_from_first_pages
 from services.ai_service import analyze_document_metadata
@@ -498,3 +498,63 @@ def get_ingest_status(
             "errors": ["La tarea ya no está activa en memoria (es posible que el servidor se haya reiniciado)."]
         }
     return task
+
+
+@router.post("/sync", status_code=status.HTTP_200_OK)
+def sync_directory_endpoint(
+    payload: SyncRequest,
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))
+):
+    """
+    Sincroniza el directorio físico con la base de datos de manera recursiva.
+    Acepta folder_path o collection_id.
+    """
+    db = SessionLocal()
+    try:
+        path_to_sync = None
+        if payload.folder_path:
+            path_to_sync = payload.folder_path
+        elif payload.collection_id:
+            try:
+                col_uuid = uuid.UUID(payload.collection_id)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="ID de colección inválido")
+                
+            collection = db.query(models.Collection).filter(models.Collection.id == col_uuid).first()
+            if not collection:
+                raise HTTPException(status_code=404, detail="Colección no encontrada")
+            
+            # Intentar obtener la ruta desde la descripción
+            if collection.description and "Colección creada automáticamente para la ruta: " in collection.description:
+                path_to_sync = collection.description.split("Colección creada automáticamente para la ruta: ")[1].strip()
+            
+            # Si no, buscar un documento externo en esta colección para derivar la ruta
+            if not path_to_sync:
+                doc = db.query(models.Document).join(models.Document.collections).filter(
+                    models.Collection.id == col_uuid,
+                    models.Document.storage_type == models.DocumentStorageType.EXTERNAL,
+                    models.Document.absolute_path.isnot(None)
+                ).first()
+                if doc and doc.absolute_path:
+                    from pathlib import Path
+                    path_to_sync = str(Path(doc.absolute_path).parent)
+                    
+            if not path_to_sync:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="No se pudo determinar la ruta física para la colección especificada"
+                )
+        else:
+            raise HTTPException(status_code=400, detail="Debe proporcionar 'folder_path' o 'collection_id'")
+
+        result = sync_directory_service(path_to_sync, db)
+        return result
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno durante la sincronización: {str(e)}"
+        )
+    finally:
+        db.close()
