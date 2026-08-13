@@ -15,6 +15,15 @@ def create_collection(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))  # <--- RBAC
 ):
+    # Validar si se proporciona un parent_id y comprobar si existe en la base de datos
+    if payload.parent_id:
+        parent_collection = db.query(models.Collection).filter(models.Collection.id == payload.parent_id).first()
+        if not parent_collection:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"La colección padre con ID {payload.parent_id} no existe."
+            )
+
     new_collection = models.Collection(
         name=payload.name,
         description=payload.description,
@@ -23,6 +32,7 @@ def create_collection(
     db.add(new_collection)
     db.commit()
     db.refresh(new_collection)
+    
     return CollectionResponse(
         id=new_collection.id,
         name=new_collection.name,
