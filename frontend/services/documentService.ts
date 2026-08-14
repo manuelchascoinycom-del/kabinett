@@ -83,6 +83,14 @@ export const documentService = {
     });
   },
 
+  // Generar metadatos usando IA
+  generateMetadata: async (itemId: string): Promise<{ title: string; composer: string; tags: string[] }> => {
+    return fetchApi<{ title: string; composer: string; tags: string[] }>(`/documents/${itemId}/generate-metadata`, {
+      method: 'POST',
+    });
+  },
+
+
   // Eliminar documento
   deleteDocument: async (documentId: string): Promise<void> => {
     return fetchApi<void>(`/documents/${documentId}`, {

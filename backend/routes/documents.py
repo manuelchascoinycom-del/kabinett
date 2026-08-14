@@ -558,3 +558,41 @@ def sync_directory_endpoint(
         )
     finally:
         db.close()
+
+@router.post("/{item_id}/generate-metadata", response_model=DocumentResponse, status_code=status.HTTP_200_OK)
+def generate_metadata_manually(
+    item_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))
+):
+    """
+    Genera metadatos manualmente para un documento existente usando IA.
+    """
+    # 1. Buscar el documento
+    doc = db.query(models.Document).filter(models.Document.id == item_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    # 2. Recuperar texto OCR (asegurarse de que existe)
+    if not doc.raw_text:
+        # Intentar extraer nuevamente si no tiene texto (opcional: reutilizar lógica de extracción)
+        if doc.absolute_path and os.path.exists(doc.absolute_path):
+            doc.raw_text = extract_text_from_first_pages(doc.absolute_path, max_pages=3)
+            db.commit()
+            db.refresh(doc)
+            if not doc.raw_text:
+                raise HTTPException(status_code=400, detail="El documento no tiene texto OCR extraíble.")
+        else:
+            raise HTTPException(status_code=400, detail="El documento no tiene texto OCR y no se encontró el archivo original.")
+
+    # 3. Invocar IA
+    try:
+        suggested_metadata = analyze_document_metadata(doc.raw_text)
+        doc.metadata_suggested = suggested_metadata
+        db.commit()
+        db.refresh(doc)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al generar metadatos: {str(e)}")
+
+    return doc
+

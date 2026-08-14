@@ -90,6 +90,8 @@ export default function Home() {
   });
 
   const [showIngestModal, setShowIngestModal] = useState(false);
+  const [generatingMetadataIds, setGeneratingMetadataIds] = useState<Record<string, boolean>>({});
+
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [ingestPath, setIngestPath] = useState('');
   const [isIngesting, setIsIngesting] = useState(false);
@@ -492,6 +494,22 @@ export default function Home() {
       console.error('Error al confirmar metadatos:', e);
     }
   };
+
+  const handleGenerateMetadata = async (backendId: string) => {
+    setGeneratingMetadataIds((prev) => ({ ...prev, [backendId]: true }));
+    try {
+      await documentService.generateMetadata(backendId);
+      setToastMessage(APP_TEXTS.aiMetadata.successToast);
+      await applyFilters();
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (e: any) {
+      console.error('Error al generar metadatos:', e);
+      setToastMessage(`${APP_TEXTS.aiMetadata.errorToastPrefix}${e.message}`);
+    } finally {
+      setGeneratingMetadataIds((prev) => ({ ...prev, [backendId]: false }));
+    }
+  };
+
 
   const handleDiscardItem = async (queueId: string) => {
     const itemToRemove = uploadQueueItems.find((item) => item.id === queueId);
@@ -911,6 +929,10 @@ export default function Home() {
                 onAssignCollection={handleAssignToCollection}
                 onDelete={handleDeleteDocument}
                 onDownloadPdf={handleDownloadPdf}
+
+                onGenerateMetadata={handleGenerateMetadata}
+                isGenerating={!!generatingMetadataIds[doc.backendId!]}
+
               />
             ))}
 

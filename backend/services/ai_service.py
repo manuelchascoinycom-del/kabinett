@@ -31,7 +31,12 @@ def analyze_document_metadata(raw_text: str) -> dict:
 
     prompt = f"""
     Eres un musicólogo y archivero experto en catalogar documentos y partituras musicales.
-    Analiza el siguiente texto extraído mediante OCR de una partitura/documento y extrae la información requerida:
+    Analiza el siguiente texto extraído mediante OCR (el cual puede contener errores tipográficos o artefactos de escaneo) de una partitura o documento histórico:
+
+    INSTRUCCIONES:
+    - Extrae o deduce el título real de la obra. Si no hay indicios claros, asigna un nombre descriptivo basado en el contenido.
+    - Identifica al compositor o autor principal. Si es anónimo o no se detecta, indícalo claramente.
+    - Genera un array de 3 a 5 etiquetas (tags) altamente descriptivas y útiles para filtrado (ej: Pianístico, Barroco, Manuscrito, Partitura, Coral).
 
     TEXTO EXTRAÍDO:
     \"\"\"{raw_text[:3000]}\"\"\"
