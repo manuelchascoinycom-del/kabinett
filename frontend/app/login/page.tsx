@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+export const dynamic = 'force-dynamic';
+
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { APP_TEXTS } from "@/app/constants/texts";
 import { authService } from "@/services/authService";
 import { Eye, EyeOff } from "lucide-react";
 
-export default function LoginPage() {
+function LoginFormContent() {
   const T = APP_TEXTS.login;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -135,5 +137,17 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[var(--app-bg)]">
+        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    }>
+      <LoginFormContent />
+    </Suspense>
   );
 }
