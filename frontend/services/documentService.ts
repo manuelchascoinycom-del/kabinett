@@ -1,25 +1,16 @@
 // services/documentService.ts
-import { fetchApi } from './apiClient';
-
-export interface DocumentType {
-  id: string;
-  title: string;
-  composer?: string;
-  collection_ids?: string[];
-  tags?: string[];
-  // Añade aquí el resto de campos de tu documento
-}
+import { fetchApi, fetchBlob } from './apiClient';
 
 export interface BackendDocument {
   id: string;
   filename: string;
   status: string;
-  metadata_suggested?: {
+  metadata_confirmed?: {
     title?: string;
     composer?: string;
     tags?: string[];
   };
-  metadata_confirmed?: {
+  metadata_suggested?: {
     title?: string;
     composer?: string;
     tags?: string[];
@@ -27,62 +18,103 @@ export interface BackendDocument {
   custom_metadata?: Record<string, any>;
 }
 
-export interface DocumentFilterPayload {
-  search?: string;
-  collection_ids?: string[];
-  tags?: string[];
-  status?: string;
-  custom_fields?: Record<string, any>;
-  [key: string]: any; // Para permitir otros filtros dinámicos
+export interface DocumentListResponse {
+  data: BackendDocument[];
+  total: number;
 }
 
-export interface ConfirmMetadataPayload {
-  title: string;
-  composer: string;
-  tags: string[];
-  custom_metadata: Record<string, any>;
+export interface FilterPayload {
+  query?: string;
+  search?: string;
+  collection_id?: string | null;
+  collection_ids?: string[];
+  composers?: string[];
+  tags?: string[];
+  custom_filters?: Record<string, any>;
+  custom_fields?: Record<string, any>;
+  page?: number;
+  limit?: number;
 }
 
 export const documentService = {
-  // Obtener todos los documentos
-  getAll: async (): Promise<BackendDocument[]> => {
-    return fetchApi<BackendDocument[]>('/documents');
+  // Obtener lista general con paginación
+  getAll: async (page = 1, limit = 20): Promise<DocumentListResponse> => {
+    return fetchApi<DocumentListResponse>(`/documents?page=${page}&limit=${limit}`);
   },
 
-  filter: async (payload: DocumentFilterPayload): Promise<BackendDocument[]> => {
-    return fetchApi<BackendDocument[]>('/documents/filter', {
+  // Filtrar documentos con paginación
+  filter: async (payload: FilterPayload): Promise<DocumentListResponse> => {
+    return fetchApi<DocumentListResponse>('/documents/filter', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   },
 
-  // Filtrar documentos por colección o parámetros
-  getByCollection: async (collectionId: string): Promise<DocumentType[]> => {
-    return fetchApi<DocumentType[]>(`/collections/${collectionId}/documents`);
-  },
-
-  getStatus: async (documentId: string): Promise<BackendDocument> => {
-    return fetchApi<BackendDocument>(`/documents/${documentId}/status`);
-  },
-
-  confirmMetadata: async (documentId: string, payload: ConfirmMetadataPayload): Promise<BackendDocument> => {
-    return fetchApi<BackendDocument>(`/documents/${documentId}/confirm-metadata`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  },
-
-  uploadPdf: async (formData: FormData): Promise<BackendDocument> => {
-    return fetchApi<BackendDocument>('/documents/upload-pdf', {
+  // Subir PDF
+  uploadPdf: async (formData: FormData): Promise<any> => {
+    return fetchApi<any>('/documents/upload-pdf', {
       method: 'POST',
       body: formData,
     });
   },
 
-  // Eliminar un documento
+  // Obtener estado de procesamiento
+  getStatus: async (documentId: string): Promise<any> => {
+    return fetchApi<any>(`/documents/${documentId}/status`);
+  },
+
+  async bulkIngest(path: string) {
+    return fetchApi<any>('/documents/bulk-ingest', { // O la ruta exacta que use tu backend
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+  },
+
+  // Obtener estado de la ingesta de una tarea
+  getIngestStatus: async (taskId: string): Promise<any> => {
+    return fetchApi<any>(`/documents/ingest-status/${taskId}`);
+  },
+
+  // Confirmar metadatos
+  confirmMetadata: async (documentId: string, payload: any): Promise<any> => {
+    return fetchApi<any>(`/documents/${documentId}/confirm-metadata`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // Generar metadatos usando IA
+  generateMetadata: async (itemId: string): Promise<{ title: string; composer: string; tags: string[] }> => {
+    return fetchApi<{ title: string; composer: string; tags: string[] }>(`/documents/${itemId}/generate-metadata`, {
+      method: 'POST',
+    });
+  },
+
+
+  // Eliminar documento
   deleteDocument: async (documentId: string): Promise<void> => {
     return fetchApi<void>(`/documents/${documentId}`, {
       method: 'DELETE',
+    });
+  },
+
+  // Descargar PDF
+  downloadPdf: async (documentId: string): Promise<Blob> => {
+    return fetchBlob(`/documents/${documentId}/download`, {
+      method: 'GET',
+    });
+  },
+
+  // Sincronizar directorio o colección externa
+  syncCollection: async (pathOrId: string): Promise<{ added: number; removed: number }> => {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pathOrId);
+    const body = isUuid
+      ? { collection_id: pathOrId }
+      : { folder_path: pathOrId };
+
+    return fetchApi<{ added: number; removed: number }>('/documents/sync', {
+      method: 'POST',
+      body: JSON.stringify(body),
     });
   },
 };

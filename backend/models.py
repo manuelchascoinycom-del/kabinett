@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
+from typing import Optional # Importar Optional
 
 from sqlalchemy import (
     Column,
@@ -34,6 +35,12 @@ class CustomFieldType(str, Enum):
     NUMBER = "number"
     SELECT = "select"
     BOOLEAN = "boolean"
+
+
+class UserRole(str, Enum):
+    ADMIN = "Admin"
+    EDITOR = "Editor"
+    VIEWER = "Viewer"
 
 
 document_collections = Table(
@@ -71,6 +78,11 @@ document_tags = Table(
 )
 
 
+class DocumentStorageType(str, Enum):
+    UPLOAD = "upload"
+    EXTERNAL = "external"
+
+
 class Document(Base):
     __tablename__ = "documents"
 
@@ -78,19 +90,27 @@ class Document(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
-    storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
-    file_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(1024), nullable=True) # Hacer nullable
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True) # Hacer nullable
     status: Mapped[DocumentStatus] = mapped_column(
         SAEnum(DocumentStatus, native_enum=False, length=20),
         nullable=False,
         default=DocumentStatus.UPLOADING,
     )
+    storage_type: Mapped[DocumentStorageType] = mapped_column(
+        SAEnum(DocumentStorageType, native_enum=False, length=20),
+        nullable=False,
+        default=DocumentStorageType.UPLOAD,
+    )
+    absolute_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    relative_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_suggested: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     metadata_confirmed: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     custom_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)
-    
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -117,12 +137,28 @@ class Collection(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("collections.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     documents: Mapped[list[Document]] = relationship(
         secondary=document_collections, back_populates="collections"
+    )
+
+    # CORRECCIÓN:
+    # 1. 'children' no necesita remote_side.
+    children: Mapped[list["Collection"]] = relationship(
+        back_populates="parent",
+        cascade="all, delete-orphan",
+    )
+
+    # 2. 'parent' es el que apunta a la columna 'id' como lado remoto.
+    parent: Mapped[Optional["Collection"]] = relationship(
+        back_populates="children",
+        remote_side=[id], 
     )
 
 
@@ -154,4 +190,31 @@ class CustomFieldDefinition(Base):
     options: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[UserRole] = mapped_column(
+        SAEnum(UserRole, native_enum=False, length=20),
+        nullable=False,
+        default=UserRole.VIEWER,
+    )
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )

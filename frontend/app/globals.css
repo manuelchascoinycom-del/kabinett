@@ -131,3 +131,15 @@ textarea {
 .app-input:focus {
   box-shadow: 0 0 0 2px rgb(16 185 129 / 0.12);
 }
+
+@layer base {
+  button, 
+  [role="button"] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}

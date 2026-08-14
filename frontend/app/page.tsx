@@ -15,12 +15,15 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { SearchBar } from '@/components/documents/SearchBar';
 import { Dropzone } from '@/components/upload/Dropzone';
 import { ConfirmModal } from '@/components/modals/ConfirmModal';
+import { HasRole } from '@/components/auth/HasRole';
+import { IngestProgressModal } from '@/components/modals/IngestProgressModal';
 
 import { collectionService } from '@/services/collectionService';
 import { documentService, BackendDocument } from '@/services/documentService';
 import { customFieldsService } from '@/services/customFieldsService';
 import { tagService } from '@/services/tagService';
 import { APP_TEXTS } from '@/app/constants/texts';
+import { useAuth } from '@/context/AuthContext';
 
 const PDFViewer = dynamic(() => import('@/components/documents/PDFViewer'), {
   ssr: false,
@@ -54,6 +57,7 @@ interface Collection {
   name: string;
   description?: string;
   document_count: number;
+  children?: Collection[];
 }
 
 interface CustomField {
@@ -78,22 +82,28 @@ interface UploadItem {
 }
 
 export default function Home() {
+  const { userRole } = useAuth();
+
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof document === 'undefined') return 'system';
     return (document.documentElement.dataset.themeMode as ThemeMode) || 'system';
   });
 
-  // 🟢 ESTADO 1: Cola de Subida Local
+  const [showIngestModal, setShowIngestModal] = useState(false);
+  const [generatingMetadataIds, setGeneratingMetadataIds] = useState<Record<string, boolean>>({});
+
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [ingestPath, setIngestPath] = useState('');
+  const [isIngesting, setIsIngesting] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage] = useState<number>(20);
+
   const [uploadQueueItems, setUploadQueueItems] = useState<UploadItem[]>([]);
-
-  // 🔵 ESTADO 2: Documentos en la Biblioteca Raíz
   const [documents, setDocuments] = useState<any[]>([]);
-
-  // Raw global para facetas
   const [rawGlobalDocuments, setRawGlobalDocuments] = useState<UploadItem[]>([]);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
-  // Control de Modal de Edición
   const [editingItem, setEditingItem] = useState<UploadItem | null>(null);
   const [editForm, setEditForm] = useState<{
     title: string;
@@ -107,34 +117,35 @@ export default function Home() {
     custom: {},
   });
 
-  // Visor Nativo de PDF
   const [viewingDocument, setViewingDocument] = useState<{ id: string; title: string } | null>(null);
 
-  // Buscador Global
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
-  // Estado de Colecciones
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
+  const [modalParentId, setModalParentId] = useState<string | undefined>(undefined);
   const [totalGlobalDocuments, setTotalGlobalDocuments] = useState<number>(0);
 
-  // Campos Personalizados
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState<'text' | 'number' | 'select' | 'boolean'>('text');
   const [newFieldOptions, setNewFieldOptions] = useState('');
 
-  // Etiquetas Globales
   const [globalTags, setGlobalTags] = useState<string[]>([]);
 
-  // Filtros Facetados
   const [selectedComposers, setSelectedComposers] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedCustomFilters, setSelectedCustomFilters] = useState<Record<string, string>>({});
+
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  // Estado para el Toast flotante global[cite: 1]
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -160,6 +171,19 @@ export default function Home() {
     return () => media.removeListener(handleSystemThemeChange);
   }, []);
 
+  const handleIngestSuccess = () => {
+    setToastMessage(APP_TEXTS.ingestModal.status.completed);
+    setShowIngestModal(false);
+    setCurrentTaskId(null);
+    fetchDocuments();
+    fetchCollections();
+
+    // Ocultar el toast automáticamente después de 6 segundos
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 6000);
+  };
+
   const handleThemeModeChange = useCallback((mode: ThemeMode) => {
     setThemeMode(mode);
     applyThemeMode(mode);
@@ -177,7 +201,7 @@ export default function Home() {
   const fetchCustomFields = async () => {
     try {
       const data = await customFieldsService.getAll();
-      setCustomFields(data);
+      setCustomFields(data as any);
     } catch (e) {
       console.error('Error al cargar campos personalizados:', e);
     }
@@ -185,8 +209,11 @@ export default function Home() {
 
   const fetchGlobalTags = async () => {
     try {
-      const data = await tagService.getAll();
-      setGlobalTags(data);
+      const data: any = await tagService.getAll();
+      const tagsArray = Array.isArray(data)
+        ? data.map((t: any) => (typeof t === 'string' ? t : t.name || ''))
+        : [];
+      setGlobalTags(tagsArray);
     } catch (e) {
       console.error('Error al cargar tags globales:', e);
     }
@@ -204,10 +231,12 @@ export default function Home() {
 
   const fetchDocuments = useCallback(async () => {
     try {
-      const globalData = await documentService.getAll();
-      setTotalGlobalDocuments(globalData.length);
+      const response: any = await documentService.getAll(1, 100);
+      const docsArray = response?.data || [];
+      const totalCount = response?.total || docsArray.length;
+      setTotalGlobalDocuments(totalCount);
 
-      const loadedItems: UploadItem[] = globalData.map((doc: BackendDocument) => ({
+      const loadedItems: UploadItem[] = docsArray.map((doc: BackendDocument) => ({
         id: doc.id,
         backendId: doc.id,
         file: { name: doc.filename, size: 0 } as File,
@@ -234,7 +263,7 @@ export default function Home() {
 
       setRawGlobalDocuments(loadedItems);
     } catch (e) {
-      console.error('Error al cargar documentos:', e);
+      console.error('Error al cargar documentos globales:', e);
     }
   }, []);
 
@@ -245,22 +274,35 @@ export default function Home() {
     fetchDocuments();
   }, [fetchDocuments]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters]);
+
   const applyFilters = useCallback(async () => {
     setIsSearching(true);
     try {
       const payload = {
         query: searchQuery,
+        search: searchQuery,
         collection_id: selectedCollectionId,
+        collection_ids: selectedCollectionId ? [selectedCollectionId] : [],
         composers: selectedComposers,
         tags: selectedTags,
         custom_filters: selectedCustomFilters,
+        custom_fields: selectedCustomFilters,
+        page: currentPage,
+        limit: itemsPerPage,
       };
 
-      // 1. Hacemos la llamada limpia al servicio
-      const data = await documentService.filter(payload);
+      const response: any = await documentService.filter(payload);
+      const docsArray = response?.data || [];
+      const totalCount = response?.total;
 
-      // 2. Mapeamos los documentos devueltos por el backend para la biblioteca
-      const readyDocs = data
+      if (totalCount !== undefined) {
+        setTotalGlobalDocuments(totalCount);
+      }
+
+      const readyDocs = docsArray
         .filter((doc: any) => doc.status !== 'PENDING_REVIEW')
         .map((doc: any) => ({
           id: doc.id,
@@ -276,14 +318,13 @@ export default function Home() {
           suggestedMetadata: doc.metadata_suggested,
         }));
 
-      // 3. Actualizamos el estado de la biblioteca de documentos
       setDocuments(readyDocs);
     } catch (e) {
       console.error('Error al aplicar filtros:', e);
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters]);
+  }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters, currentPage, itemsPerPage]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -291,6 +332,8 @@ export default function Home() {
     }, 250);
     return () => clearTimeout(timer);
   }, [applyFilters]);
+
+  const totalPages = Math.ceil(totalGlobalDocuments / itemsPerPage) || 1;
 
   const facets = useMemo(() => {
     const composerCounts: Record<string, number> = {};
@@ -316,14 +359,12 @@ export default function Home() {
     formData.append('file', fileItem.file);
 
     try {
-      // 1. Estado inicial: Subiendo archivo
       setUploadQueueItems((prev) =>
         prev.map((item) => (item.id === fileItem.id ? { ...item, status: 'uploading', progress: 30 } : item))
       );
 
       let data = await documentService.uploadPdf(formData);
 
-      // 2. Si el backend responde 'processing', consultamos /status periódicamente
       if (data.status === 'processing' || data.status === 'PROCESSING') {
         setUploadQueueItems((prev) =>
           prev.map((item) => (item.id === fileItem.id ? { ...item, progress: 60 } : item))
@@ -331,25 +372,21 @@ export default function Home() {
 
         let isCompleted = false;
         let attempts = 0;
-        const maxAttempts = 15; // Reintenta durante ~15 segundos máximo
+        const maxAttempts = 15;
 
         while (!isCompleted && attempts < maxAttempts) {
-          // Esperamos 1 segundo entre cada consulta
           await new Promise((resolve) => setTimeout(resolve, 1000));
           attempts++;
 
           const statusData = await documentService.getStatus(data.id);
-          
-          // Si el estado ya cambió (sea éxito o error)
           const currentStatus = (statusData.status || '').toUpperCase();
           if (currentStatus !== 'PROCESSING') {
-            data = statusData; // Actualizamos 'data' con el estado final
+            data = statusData;
             isCompleted = true;
           }
         }
       }
 
-      // 3. Comprobamos si el estado final del Backend fue ERROR
       const finalBackendStatus = (data.status || '').toUpperCase();
 
       if (finalBackendStatus === 'ERROR') {
@@ -365,10 +402,9 @@ export default function Home() {
               : item
           )
         );
-        return; // Detenemos la ejecución aquí
+        return;
       }
 
-      // 4. Si fue exitoso, mapeamos la respuesta final
       const uploadedItem: UploadItem = {
         ...fileItem,
         progress: 100,
@@ -407,17 +443,20 @@ export default function Home() {
     }
   };
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    setGlobalError(null);
-    const newItems: UploadItem[] = acceptedFiles.map((file) => ({
-      id: `${file.name}-${Date.now()}-${Math.random()}`,
-      file,
-      progress: 0,
-      status: 'pending',
-    }));
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      setGlobalError(null);
+      const newItems: UploadItem[] = acceptedFiles.map((file) => ({
+        id: `${file.name}-${Date.now()}-${Math.random()}`,
+        file,
+        progress: 0,
+        status: 'pending',
+      }));
 
-    setUploadQueueItems((prev) => [...newItems, ...prev]);
-  }, []);
+      setUploadQueueItems((prev) => [...newItems, ...prev]);
+    },
+    []
+  );
 
   const handleStartUpload = async () => {
     const pendingItems = uploadQueueItems.filter((item) => item.status === 'pending');
@@ -426,46 +465,27 @@ export default function Home() {
     }
   };
 
-  const removeItemFromQueue = async (id: string) => {
-    // 1. Buscamos el elemento en el estado de la cola
-    const itemToRemove = uploadQueueItems.find((item) => item.id === id);
-
-    // 2. Si ya se subió al backend (tiene backendId), llamamos al servicio para borrarlo de la BD y del disco
-    if (itemToRemove?.backendId) {
-      try {
-        await documentService.delete(itemToRemove.backendId);
-      } catch (error) {
-        console.error("Error al eliminar el documento del servidor:", error);
-        // Opcional: podrías mostrar una notificación toast o alerta aquí si falla la red
-      }
-  }
-
-  // 3. Lo quitamos del estado visual de la cola
-  setUploadQueueItems((prev) => prev.filter((item) => item.id !== id));
-};
-
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     onDropRejected: () => setGlobalError(APP_TEXTS.home.dropRejectedError),
     accept: { 'application/pdf': ['.pdf'] },
     multiple: true,
+    disabled: userRole === 'Viewer',
   });
 
   const handleConfirmMetadata = async () => {
     if (!editingItem || !editingItem.backendId) return;
 
     try {
-     const payload = {
+      const payload = {
         title: editForm.title,
         composer: editForm.composer,
         tags: editForm.tags,
         custom_metadata: editForm.custom,
       };
 
-      // Hacemos la llamada centralizada
       await documentService.confirmMetadata(editingItem.backendId, payload);
 
-      // Si no se lanza error, la operación fue exitosa
       setEditingItem(null);
       fetchDocuments();
       fetchGlobalTags();
@@ -475,11 +495,25 @@ export default function Home() {
     }
   };
 
-  // Borra de la BD + Quita de la pantalla
+  const handleGenerateMetadata = async (backendId: string) => {
+    setGeneratingMetadataIds((prev) => ({ ...prev, [backendId]: true }));
+    try {
+      await documentService.generateMetadata(backendId);
+      setToastMessage(APP_TEXTS.aiMetadata.successToast);
+      await applyFilters();
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (e: any) {
+      console.error('Error al generar metadatos:', e);
+      setToastMessage(`${APP_TEXTS.aiMetadata.errorToastPrefix}${e.message}`);
+    } finally {
+      setGeneratingMetadataIds((prev) => ({ ...prev, [backendId]: false }));
+    }
+  };
+
+
   const handleDiscardItem = async (queueId: string) => {
     const itemToRemove = uploadQueueItems.find((item) => item.id === queueId);
     
-    // Si llegó a subir al backend, lo borramos de la BD y disco
     if (itemToRemove?.backendId) {
       try {
         await documentService.deleteDocument(itemToRemove.backendId);
@@ -488,11 +522,9 @@ export default function Home() {
       }
     }
 
-    // Lo borramos de la lista local en pantalla
     setUploadQueueItems((prev) => prev.filter((item) => item.id !== queueId));
   };
 
-  // Guarda metadatos en la BD + Solo quita de la pantalla
   const handleConfirmQueueItem = async (
     backendId: string,
     metadata: Metadata,
@@ -507,13 +539,8 @@ export default function Home() {
         custom_metadata: customMetadata,
       };
 
-      // 1. Guardamos la confirmación en el Backend
       await documentService.confirmMetadata(backendId, payload);
-
-      // 2. SOLO quitamos la tarjeta de la cola local (¡SIN HACER DELETE HTTP!)
       setUploadQueueItems((prev) => prev.filter((item) => item.id !== queueId));
-      
-      // 3. Refrescamos la lista de la biblioteca
       fetchDocuments(); 
       applyFilters();
     } catch (error) {
@@ -521,35 +548,31 @@ export default function Home() {
     }
   };
 
-  const handleCreateCustomField = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!newFieldName.trim()) return;
+  const handleCreateCustomField = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newFieldName.trim()) return;
 
-      try {
-        const payload = {
-          name: newFieldName,
-          field_type: newFieldType,
-          options: newFieldType === 'select' ? newFieldOptions.split(',').map((s) => s.trim()) : [],
-        };
+    try {
+      const payload = {
+        name: newFieldName,
+        field_type: newFieldType,
+        options: newFieldType === 'select' ? newFieldOptions.split(',').map((s) => s.trim()) : [],
+      };
 
-        await customFieldsService.create(payload);
+      await customFieldsService.create(payload);
 
-        // Si tiene éxito, limpiamos el formulario y refrescamos la lista
-        setNewFieldName('');
-        setNewFieldOptions('');
-        setShowConfigModal(false);
-        fetchCustomFields();
-      } catch (e) {
-        console.error('Error al crear campo personalizado:', e);
-      }
-    };
+      setNewFieldName('');
+      setNewFieldOptions('');
+      setShowConfigModal(false);
+      fetchCustomFields();
+    } catch (e) {
+      console.error('Error al crear campo personalizado:', e);
+    }
+  };
 
   const handleDeleteCustomField = async (fieldId: string) => {
     try {
-      // 1. Llamada a la API de FastAPI a través del servicio
       await customFieldsService.delete(fieldId);
-
-      // 2. Volver a cargar la lista de campos en el estado global
       fetchCustomFields();
     } catch (error) {
       console.error('Error al eliminar campo personalizado:', error);
@@ -586,10 +609,9 @@ export default function Home() {
     if (!newCollectionName.trim()) return;
 
     try {
-      await collectionService.create(newCollectionName);
-
-      // Acciones tras crear con éxito
+      await collectionService.create(newCollectionName, modalParentId);
       setNewCollectionName('');
+      setModalParentId(undefined);
       setShowNewCollectionModal(false);
       fetchCollections();
     } catch (e) {
@@ -600,8 +622,6 @@ export default function Home() {
   const handleAssignToCollection = async (backendId: string, collectionId: string) => {
     try {
       await collectionService.addDocument(collectionId, backendId);
-
-      // Si la petición fue exitosa, refrescamos el estado
       fetchCollections();
       applyFilters();
     } catch (e) {
@@ -609,13 +629,45 @@ export default function Home() {
     }
   };
 
-  // Función para quitar un documento de la colección activa
+  const handleDeleteDocument = async (documentId: string) => {
+    try {
+      await documentService.deleteDocument(documentId);
+      setDocuments((prevDocs) => prevDocs.filter((doc) => (doc.backendId || doc.id) !== documentId));
+    } catch (error) {
+      console.error('Error al eliminar el documento:', error);
+    }
+  };
+
+  const handleDownloadPdf = async (documentId: string, title: string) => {
+    try {
+      const rawBlob = await documentService.downloadPdf(documentId);
+      const blob = new Blob([rawBlob], { type: 'application/pdf' });
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      const fileName = title.endsWith('.pdf') ? title : `${title}.pdf`;
+      
+      const downloadLink = document.createElement('a');
+      downloadLink.style.display = 'none';
+      downloadLink.href = blobUrl;
+      downloadLink.setAttribute('download', fileName);
+      downloadLink.target = '_self';
+
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 1000);
+    } catch (error) {
+      console.error('Error al descargar el archivo:', error);
+    }
+  };
+
   const handleRemoveFromCollection = async (docId: string, collectionId: string) => {
     try {
-      // 1. Petición DELETE centralizada
       await collectionService.removeDocument(collectionId, docId);
 
-      // 2. Actualización de estado local en React
       if (selectedCollectionId === collectionId) {
         setDocuments((prevDocs) => prevDocs.filter((doc) => doc.id !== docId));
       } else {
@@ -632,24 +684,18 @@ export default function Home() {
         );
       }
 
-      // 3. Re-obtenemos las colecciones para refrescar los contadores
       fetchCollections();
-
     } catch (error) {
-      // ⚡ 4. El error del servidor se captura AQUÍ automáticamente
       console.error('El servidor respondió con un error:', error);
     }
   };
 
-  // 1. Estado para controlar el modal de borrado
   const [collectionToDelete, setCollectionToDelete] = useState<string | null>(null);
 
-  // 2. Al pulsar el botón de la papelera en la Sidebar
   const handleDeleteCollectionClick = (collectionId: string) => {
-    setCollectionToDelete(collectionId); // Abre el modal
+    setCollectionToDelete(collectionId);
   };
 
-  // 3. Acción real de borrado (se ejecuta al pulsar "Eliminar" en el modal)
   const handleConfirmDeleteCollection = async () => {
     if (!collectionToDelete) return;
 
@@ -667,9 +713,73 @@ export default function Home() {
     }
   };
 
+  const handleBulkIngestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ingestPath.trim()) return;
+
+    try {
+      setIsIngesting(true);
+      const response = await documentService.bulkIngest(ingestPath.trim());
+      const taskId = response.task_id || response.id; 
+      if (taskId) {
+        setCurrentTaskId(taskId);
+        setShowIngestModal(true);
+        setIngestPath('');
+      }
+    } catch (error) {
+      console.error('Error al iniciar la ingesta masiva:', error);
+    } finally {
+      setIsIngesting(false);
+    }
+  };
+
+  const handleSyncCollection = async () => {
+    const targetIdOrPath = selectedCollectionId;
+    if (!targetIdOrPath) {
+      setGlobalError(APP_TEXTS.sync.errorNoCollection);
+      return;
+    }
+
+    try {
+      setIsSyncing(true);
+      setSyncMessage(null);
+      setGlobalError(null);
+
+      const result = await documentService.syncCollection(targetIdOrPath);
+      
+      setSyncMessage(`Sincronización exitosa: ${result.added} archivos añadidos, ${result.removed} referencias eliminadas.`);
+      
+      await fetchDocuments();
+      await fetchCollections();
+      await applyFilters();
+
+    } catch (error: any) {
+      console.error('Error al sincronizar:', error);
+      setGlobalError(error.message || 'Error al ejecutar la sincronización del directorio.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const parentCollectionName = useMemo(() => {
+    if (!modalParentId) return null;
+    
+    const findName = (cols: Collection[]): string | null => {
+      for (const c of cols) {
+        if (c.id === modalParentId) return c.name;
+        if (c.children) {
+          const found = findName(c.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    return findName(collections);
+  }, [modalParentId, collections]);
+
   return (
     <div className="flex min-h-screen bg-[var(--app-bg)] text-[color:var(--text-primary)] font-sans transition-colors duration-200">
-      {/* Sidebar 1: Navegación Principal y Colecciones */}
       <Sidebar
         totalGlobalDocuments={totalGlobalDocuments}
         selectedCollectionId={selectedCollectionId}
@@ -677,12 +787,14 @@ export default function Home() {
         collections={collections}
         themeMode={themeMode}
         onThemeModeChange={handleThemeModeChange}
-        onOpenNewCollectionModal={() => setShowNewCollectionModal(true)}
+        onOpenNewCollectionModal={(parentId) => {
+          setModalParentId(parentId);
+          setShowNewCollectionModal(true);
+        }}
         onOpenConfigModal={() => setShowConfigModal(true)}
         onDeleteCollection={handleDeleteCollectionClick}
       />
 
-      {/* Sidebar 2: Panel Lateral de Filtros Facetados */}
       <FacetedFilters
         facets={facets}
         selectedComposers={selectedComposers}
@@ -698,47 +810,111 @@ export default function Home() {
         onClearAllFilters={clearAllFilters}
       />
 
-      {/* Panel Principal */}
       <main className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
-          {/* Barra de Búsqueda Global */}
           <SearchBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             isSearching={isSearching}
           />
 
-          {/* Zona de Carga (Dropzone) */}
-          <Dropzone
-            getRootProps={getRootProps}
-            getInputProps={getInputProps}
-            isDragActive={isDragActive}
-          />
+          <HasRole canEdit>
+            <Dropzone
+              getRootProps={getRootProps}
+              getInputProps={getInputProps}
+              isDragActive={isDragActive}
+            />
+          </HasRole>
 
           {globalError && (
-            <div className="mb-4 p-3 bg-[var(--danger-surface)] border border-[color:var(--danger-border)] text-[color:var(--danger)] text-xs rounded-lg">
+            <div className="my-4 p-3 bg-[var(--danger-surface)] border border-[color:var(--danger-border)] text-[color:var(--danger)] text-xs rounded-lg">
               {globalError}
             </div>
           )}
 
-          {/* COLA DE SUBIDA LOCAL */}
-          <UploadQueue
-            items={uploadQueueItems}
-            globalTags={globalTags || []} 
-            customFields={customFields}
-            onStartUpload={handleStartUpload}
-            onUploadSingleItem={(item) => uploadFileToServer(item)}
-            onRemoveItem={handleDiscardItem}
-            onConfirmItem={handleConfirmQueueItem}
-          />
+          {/* Acordeón de Herramientas de Administración (Importación Masiva y Sincronización) */}
+          <HasRole canEdit>
+            <details className="my-6 p-4 rounded-xl bg-[var(--surface)] border border-[color:var(--border-color)] group">
+              <summary className="cursor-pointer text-xs font-bold text-[color:var(--text-strong)] uppercase tracking-wider flex items-center justify-between select-none">
+                <span className="flex items-center gap-2">
+                  🛠️ {APP_TEXTS.bulkIngest.title} &amp; {APP_TEXTS.sync.title}
+                </span>
+                <span className="text-[10px] text-[color:var(--text-secondary)] font-normal group-open:hidden">
+                  Desplegar ▾
+                </span>
+                <span className="text-[10px] text-[color:var(--text-secondary)] font-normal hidden group-open:inline">
+                  Ocultar ▴
+                </span>
+              </summary>
 
-          {/* SECCIÓN DE DOCUMENTOS */}
+              <div className="mt-4 pt-4 border-t border-[color:var(--border-color)] space-y-6">
+                {/* Bloque de Importación Masiva */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-[color:var(--text-strong)] uppercase tracking-wider">
+                    {APP_TEXTS.bulkIngest.title}
+                  </h4>
+                  <form onSubmit={handleBulkIngestSubmit} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder={APP_TEXTS.bulkIngest.placeholder}
+                      value={ingestPath}
+                      onChange={(e) => setIngestPath(e.target.value)}
+                      className="flex-1 px-3 py-2 text-xs rounded-lg bg-[var(--app-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isIngesting || !ingestPath.trim()}
+                      className="px-4 py-2 text-xs font-bold rounded-lg bg-amber-500 text-slate-950 hover:bg-amber-400 disabled:opacity-50 transition-colors"
+                    >
+                      {isIngesting ? APP_TEXTS.bulkIngest.submittingBtn : APP_TEXTS.bulkIngest.submitBtn}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Bloque de Sincronización y Re-escaneo */}
+                <div className="space-y-3 pt-4 border-t border-[color:var(--border-color)]">
+                  <h4 className="text-xs font-bold text-[color:var(--text-strong)] uppercase tracking-wider">
+                    {APP_TEXTS.sync.title}
+                  </h4>
+                  <p className="text-xs text-[color:var(--text-secondary)]">
+                    {APP_TEXTS.sync.description}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSyncCollection}
+                    disabled={isSyncing || !selectedCollectionId}
+                    className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+                  >
+                    {isSyncing ? APP_TEXTS.sync.syncingBtn : APP_TEXTS.sync.syncBtn}
+                  </button>
+                  {syncMessage && (
+                    <div className="p-2 bg-emerald-950/40 border border-emerald-800 text-emerald-400 text-xs rounded-lg">
+                      {syncMessage}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </details>
+          </HasRole>
+
+          <HasRole canEdit>
+            <UploadQueue
+              items={uploadQueueItems}
+              globalTags={globalTags || []} 
+              customFields={customFields}
+              onStartUpload={handleStartUpload}
+              onUploadSingleItem={(item) => uploadFileToServer(item)}
+              onRemoveItem={handleDiscardItem}
+              onConfirmItem={handleConfirmQueueItem}
+            />
+          </HasRole>
+
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-[color:var(--text-strong)]">
               {selectedCollectionId
                 ? `${APP_TEXTS.home.collectionTitlePrefix}${collections.find((c) => c.id === selectedCollectionId)?.name || ''}`
                 : APP_TEXTS.home.rootLibraryTitle}{' '}
-              ({documents.length})
+              ({totalGlobalDocuments})
             </h3>
 
             {documents.map((doc) => (
@@ -751,25 +927,70 @@ export default function Home() {
                 onEdit={openEditModal}
                 onViewPdf={(backendId, title) => setViewingDocument({ id: backendId, title })}
                 onAssignCollection={handleAssignToCollection}
+                onDelete={handleDeleteDocument}
+                onDownloadPdf={handleDownloadPdf}
+
+                onGenerateMetadata={handleGenerateMetadata}
+                isGenerating={!!generatingMetadataIds[doc.backendId!]}
+
               />
             ))}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-[color:var(--border-color)]">
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
+                >
+                  Anterior
+                </button>
+                <span className="text-xs text-[color:var(--text-secondary)]">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </main>
 
-      {/* Modal de Edición / Confirmación de Metadatos */}
-      <EditMetadataModal
-        isOpen={!!editingItem}
-        editingItem={editingItem}
-        editForm={editForm}
-        globalTags={globalTags}
-        customFields={customFields}
-        setEditForm={setEditForm}
-        onClose={() => setEditingItem(null)}
-        onConfirm={handleConfirmMetadata}
-      />
+      {/* Toast flotante global de notificación[cite: 1] */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl bg-emerald-600 text-white shadow-2xl flex items-center gap-3 animate-bounce">
+          <span>✨</span>
+          <p className="text-xs font-semibold">{toastMessage}</p>
+          <button 
+            onClick={() => setToastMessage(null)} 
+            className="ml-2 text-white hover:text-emerald-200 font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
-      {/* Visor Nativo de PDF */}
+      {/* Modal de Progreso de Ingesta Masiva[cite: 2] */}
+      {showIngestModal && (
+        <IngestProgressModal
+          isOpen={showIngestModal}
+          taskId={currentTaskId}
+          onClose={() => {
+            setShowIngestModal(false);
+            setCurrentTaskId(null);
+            fetchDocuments();
+            fetchCollections();
+          }}
+          onSuccess={handleIngestSuccess}
+        />
+      )}
+
+      {/* Visor de PDF si está activo */}
       {viewingDocument && (
         <PDFViewer
           documentId={viewingDocument.id}
@@ -778,37 +999,50 @@ export default function Home() {
         />
       )}
 
-      {/* Modal Crear Colección */}
+      {/* Modal de Edición de Metadatos */}
+      {editingItem && (
+        <EditMetadataModal
+          isOpen={!!editingItem}
+          editingItem={editingItem}
+          editForm={editForm}
+          setEditForm={setEditForm}
+          customFields={customFields}
+          globalTags={globalTags}
+          onClose={() => setEditingItem(null)}
+          onConfirm={handleConfirmMetadata}
+        />
+      )}
+
+      {/* Modal de Creación de Colección */}
       <CreateCollectionModal
         isOpen={showNewCollectionModal}
         newCollectionName={newCollectionName}
         setNewCollectionName={setNewCollectionName}
+        parentCollectionName={parentCollectionName}
         onClose={() => setShowNewCollectionModal(false)}
         onSubmit={handleCreateCollection}
       />
 
-      {/* Modal Configurar Campos Personalizados */}
+      {/* Modal de Configuración / Campos personalizados */}
       <CustomFieldsModal
         isOpen={showConfigModal}
+        customFields={customFields}
         newFieldName={newFieldName}
         setNewFieldName={setNewFieldName}
         newFieldType={newFieldType}
         setNewFieldType={setNewFieldType}
         newFieldOptions={newFieldOptions}
         setNewFieldOptions={setNewFieldOptions}
-        customFields={customFields}
-        onDeleteField={handleDeleteCustomField}
         onClose={() => setShowConfigModal(false)}
         onSubmit={handleCreateCustomField}
+        onDeleteField={handleDeleteCustomField}
       />
 
-      {/* Modal de confirmación de eliminación */}
+      {/* Modal de Confirmación de Borrado */}
       <ConfirmModal
         isOpen={!!collectionToDelete}
-        title={APP_TEXTS.modals.deleteCollection.title}
-        message={APP_TEXTS.modals.deleteCollection.message}
-        confirmText={APP_TEXTS.modals.deleteCollection.confirmBtn}
-        isDanger={true}
+        title="Eliminar colección"
+        message="¿Estás seguro de que deseas eliminar esta colección? Los documentos contenidos no se eliminarán."
         onConfirm={handleConfirmDeleteCollection}
         onClose={() => setCollectionToDelete(null)}
       />

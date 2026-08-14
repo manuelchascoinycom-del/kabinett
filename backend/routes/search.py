@@ -2,13 +2,15 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import get_db
+from dependencies import require_roles  # <--- Importación actualizada
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
 @router.get("", status_code=status.HTTP_200_OK)
 def global_search(
     q: str = Query(..., min_length=3, description="Término de búsqueda (mínimo 3 caracteres)"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC
 ):
     """
     KAB-US-007: Búsqueda Global Full-Text Search
