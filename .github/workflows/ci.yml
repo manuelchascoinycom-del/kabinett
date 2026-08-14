@@ -1,0 +1,60 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository_owner }}/kabinett-backend
+            ghcr.io/${{ github.repository_owner }}/kabinett-frontend
+          tags: |
+            type=raw,value=latest
+            type=sha,format=long
+
+      # Opcional: Aquí añadirías los pasos de tests/linters antes del build de Docker
+      # - name: Set up Python for Backend Tests
+      # - name: Set up Node.js for Frontend Tests
+
+      - name: Build and push Backend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/Dockerfile # Ajusta según la ruta de tu Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/kabinett-backend:latest
+            ghcr.io/${{ github.repository_owner }}/kabinett-backend:${{ github.sha }}
+
+      - name: Build and push Frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./frontend/Dockerfile # Ajusta según la ruta de tu Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/kabinett-frontend:latest
+            ghcr.io/${{ github.repository_owner }}/kabinett-frontend:${{ github.sha }}
