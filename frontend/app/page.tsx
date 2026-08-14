@@ -555,7 +555,7 @@ export default function Home() {
     try {
       const payload = {
         name: newFieldName,
-        field_type: newFieldType,
+        type: newFieldType,
         options: newFieldType === 'select' ? newFieldOptions.split(',').map((s) => s.trim()) : [],
       };
 
@@ -676,7 +676,7 @@ export default function Home() {
             if (doc.id === docId && doc.collection_ids) {
               return {
                 ...doc,
-                collection_ids: doc.collection_ids.filter((id) => id !== collectionId),
+                collection_ids: doc.collection_ids.filter((id: string) => id !== collectionId),
               };
             }
             return doc;
