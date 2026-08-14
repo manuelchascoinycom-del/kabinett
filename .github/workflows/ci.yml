@@ -31,19 +31,12 @@ jobs:
           images: |
             ghcr.io/${{ github.repository_owner }}/kabinett-backend
             ghcr.io/${{ github.repository_owner }}/kabinett-frontend
-          tags: |
-            type=raw,value=latest
-            type=sha,format=long
-
-      # Opcional: Aquí añadirías los pasos de tests/linters antes del build de Docker
-      # - name: Set up Python for Backend Tests
-      # - name: Set up Node.js for Frontend Tests
 
       - name: Build and push Backend Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./backend/Dockerfile # Ajusta según la ruta de tu Dockerfile
+          file: backend/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/kabinett-backend:latest
@@ -53,7 +46,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./frontend/Dockerfile # Ajusta según la ruta de tu Dockerfile
+          file: frontend/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/kabinett-frontend:latest
