@@ -733,6 +733,8 @@ export default function Home() {
       
       await fetchDocuments();
       await fetchCollections();
+      await applyFilters();
+
     } catch (error: any) {
       console.error('Error al sincronizar:', error);
       setGlobalError(error.message || 'Error al ejecutar la sincronización del directorio.');
