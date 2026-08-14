@@ -35,8 +35,8 @@ jobs:
       - name: Build and push Backend Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: backend/Dockerfile
+          context: ./backend      # <--- El contexto es la carpeta backend
+          file: ./backend/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/kabinett-backend:latest
@@ -45,8 +45,8 @@ jobs:
       - name: Build and push Frontend Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: frontend/Dockerfile
+          context: ./frontend     # <--- El contexto es la carpeta frontend
+          file: ./frontend/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/kabinett-frontend:latest
