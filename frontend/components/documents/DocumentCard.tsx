@@ -31,6 +31,8 @@ interface DocumentCardProps {
   onDownloadPdf?: (backendId: string, title: string) => void | Promise<void>;
   onAssignCollection: (backendId: string, collectionId: string) => void;
   onDelete?: (backendId: string) => void;
+  onGenerateMetadata?: (backendId: string) => void;
+  isGenerating?: boolean;
 }
 
 interface FlattenedCollection {
@@ -58,6 +60,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onRemoveFromCollection,
   onEdit,
   onViewPdf,
+  onGenerateMetadata,
+  isGenerating,
+
   onDownloadPdf,
   onAssignCollection,
   onDelete,
@@ -75,6 +80,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     : [];
 
   const T = APP_TEXTS.documentCard;
+  const T_AI = APP_TEXTS.aiMetadata;
 
   const handleDownload = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
@@ -205,6 +211,21 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             >
               {T.downloadPdfIcon} {isDownloading ? T.downloadingPdfBtn : T.downloadPdfBtn}
             </button>
+          )}
+
+          {/* Generar con IA */}
+          {onGenerateMetadata && item.backendId && (
+            <HasRole canEdit>
+              <button
+                type="button"
+                onClick={() => onGenerateMetadata(item.backendId!)}
+                disabled={isGenerating}
+                className="px-3 py-1.5 bg-[var(--accent-soft)] hover:bg-[var(--accent-surface)] text-[color:var(--accent)] border border-[color:var(--accent-border)] text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title={T_AI.generateBtn}
+              >
+                {isGenerating ? T_AI.generatingBtn : T_AI.generateBtn}
+              </button>
+            </HasRole>
           )}
 
           {/* Editar metadatos */}

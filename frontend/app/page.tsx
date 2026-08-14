@@ -90,6 +90,8 @@ export default function Home() {
   });
 
   const [showIngestModal, setShowIngestModal] = useState(false);
+  const [generatingMetadataIds, setGeneratingMetadataIds] = useState<Record<string, boolean>>({});
+
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [ingestPath, setIngestPath] = useState('');
   const [isIngesting, setIsIngesting] = useState(false);
@@ -142,6 +144,9 @@ export default function Home() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
+  // Estado para el Toast flotante global[cite: 1]
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   useEffect(() => {
     const root = document.documentElement;
     const initialMode = (root.dataset.themeMode as ThemeMode) || 'system';
@@ -165,6 +170,19 @@ export default function Home() {
     media.addListener(handleSystemThemeChange);
     return () => media.removeListener(handleSystemThemeChange);
   }, []);
+
+  const handleIngestSuccess = () => {
+    setToastMessage(APP_TEXTS.ingestModal.status.completed);
+    setShowIngestModal(false);
+    setCurrentTaskId(null);
+    fetchDocuments();
+    fetchCollections();
+
+    // Ocultar el toast automáticamente después de 6 segundos
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 6000);
+  };
 
   const handleThemeModeChange = useCallback((mode: ThemeMode) => {
     setThemeMode(mode);
@@ -477,6 +495,22 @@ export default function Home() {
     }
   };
 
+  const handleGenerateMetadata = async (backendId: string) => {
+    setGeneratingMetadataIds((prev) => ({ ...prev, [backendId]: true }));
+    try {
+      await documentService.generateMetadata(backendId);
+      setToastMessage(APP_TEXTS.aiMetadata.successToast);
+      await applyFilters();
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (e: any) {
+      console.error('Error al generar metadatos:', e);
+      setToastMessage(`${APP_TEXTS.aiMetadata.errorToastPrefix}${e.message}`);
+    } finally {
+      setGeneratingMetadataIds((prev) => ({ ...prev, [backendId]: false }));
+    }
+  };
+
+
   const handleDiscardItem = async (queueId: string) => {
     const itemToRemove = uploadQueueItems.find((item) => item.id === queueId);
     
@@ -514,8 +548,8 @@ export default function Home() {
     }
   };
 
-  const handleCreateCustomField = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateCustomField = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!newFieldName.trim()) return;
 
     try {
@@ -700,7 +734,6 @@ export default function Home() {
   };
 
   const handleSyncCollection = async () => {
-    // Si hay una colección seleccionada sincronizamos por ID, si no, podemos usar un path raíz o la colección actual
     const targetIdOrPath = selectedCollectionId;
     if (!targetIdOrPath) {
       setGlobalError(APP_TEXTS.sync.errorNoCollection);
@@ -716,9 +749,10 @@ export default function Home() {
       
       setSyncMessage(`Sincronización exitosa: ${result.added} archivos añadidos, ${result.removed} referencias eliminadas.`);
       
-      // Actualizamos los documentos y colecciones
       await fetchDocuments();
       await fetchCollections();
+      await applyFilters();
+
     } catch (error: any) {
       console.error('Error al sincronizar:', error);
       setGlobalError(error.message || 'Error al ejecutar la sincronización del directorio.');
@@ -792,58 +826,75 @@ export default function Home() {
             />
           </HasRole>
 
-          <HasRole canEdit>
-            <div className="my-6 p-4 rounded-xl bg-[var(--surface)] border border-[color:var(--border-color)] space-y-3">
-              <h4 className="text-xs font-bold text-[color:var(--text-strong)] uppercase tracking-wider">
-                {APP_TEXTS.bulkIngest.title}
-              </h4>
-              <form onSubmit={handleBulkIngestSubmit} className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder={APP_TEXTS.bulkIngest.placeholder}
-                  value={ingestPath}
-                  onChange={(e) => setIngestPath(e.target.value)}
-                  className="flex-1 px-3 py-2 text-xs rounded-lg bg-[var(--app-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:border-amber-500"
-                />
-                <button
-                  type="submit"
-                  disabled={isIngesting || !ingestPath.trim()}
-                  className="px-4 py-2 text-xs font-bold rounded-lg bg-amber-500 text-slate-950 hover:bg-amber-400 disabled:opacity-50 transition-colors"
-                >
-                  {isIngesting ? APP_TEXTS.bulkIngest.submittingBtn : APP_TEXTS.bulkIngest.submitBtn}
-                </button>
-              </form>
-            </div>
-          </HasRole>
-
           {globalError && (
-            <div className="mb-4 p-3 bg-[var(--danger-surface)] border border-[color:var(--danger-border)] text-[color:var(--danger)] text-xs rounded-lg">
+            <div className="my-4 p-3 bg-[var(--danger-surface)] border border-[color:var(--danger-border)] text-[color:var(--danger)] text-xs rounded-lg">
               {globalError}
             </div>
           )}
 
+          {/* Acordeón de Herramientas de Administración (Importación Masiva y Sincronización) */}
           <HasRole canEdit>
-            <div className="my-6 p-4 rounded-xl bg-[var(--surface)] border border-[color:var(--border-color)] space-y-3">
-              <h4 className="text-xs font-bold text-[color:var(--text-strong)] uppercase tracking-wider">
-                {APP_TEXTS.sync.title}
-              </h4>
-              <p className="text-xs text-[color:var(--text-secondary)]">
-                {APP_TEXTS.sync.description}
-              </p>
-              <button
-                type="button"
-                onClick={handleSyncCollection}
-                disabled={isSyncing || !selectedCollectionId}
-                className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
-              >
-                {isSyncing ? APP_TEXTS.sync.syncingBtn : APP_TEXTS.sync.syncBtn}
-              </button>
-              {syncMessage && (
-                <div className="p-2 bg-emerald-950/40 border border-emerald-800 text-emerald-400 text-xs rounded-lg">
-                  {syncMessage}
+            <details className="my-6 p-4 rounded-xl bg-[var(--surface)] border border-[color:var(--border-color)] group">
+              <summary className="cursor-pointer text-xs font-bold text-[color:var(--text-strong)] uppercase tracking-wider flex items-center justify-between select-none">
+                <span className="flex items-center gap-2">
+                  🛠️ {APP_TEXTS.bulkIngest.title} &amp; {APP_TEXTS.sync.title}
+                </span>
+                <span className="text-[10px] text-[color:var(--text-secondary)] font-normal group-open:hidden">
+                  Desplegar ▾
+                </span>
+                <span className="text-[10px] text-[color:var(--text-secondary)] font-normal hidden group-open:inline">
+                  Ocultar ▴
+                </span>
+              </summary>
+
+              <div className="mt-4 pt-4 border-t border-[color:var(--border-color)] space-y-6">
+                {/* Bloque de Importación Masiva */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-[color:var(--text-strong)] uppercase tracking-wider">
+                    {APP_TEXTS.bulkIngest.title}
+                  </h4>
+                  <form onSubmit={handleBulkIngestSubmit} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder={APP_TEXTS.bulkIngest.placeholder}
+                      value={ingestPath}
+                      onChange={(e) => setIngestPath(e.target.value)}
+                      className="flex-1 px-3 py-2 text-xs rounded-lg bg-[var(--app-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isIngesting || !ingestPath.trim()}
+                      className="px-4 py-2 text-xs font-bold rounded-lg bg-amber-500 text-slate-950 hover:bg-amber-400 disabled:opacity-50 transition-colors"
+                    >
+                      {isIngesting ? APP_TEXTS.bulkIngest.submittingBtn : APP_TEXTS.bulkIngest.submitBtn}
+                    </button>
+                  </form>
                 </div>
-              )}
-            </div>
+
+                {/* Bloque de Sincronización y Re-escaneo */}
+                <div className="space-y-3 pt-4 border-t border-[color:var(--border-color)]">
+                  <h4 className="text-xs font-bold text-[color:var(--text-strong)] uppercase tracking-wider">
+                    {APP_TEXTS.sync.title}
+                  </h4>
+                  <p className="text-xs text-[color:var(--text-secondary)]">
+                    {APP_TEXTS.sync.description}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSyncCollection}
+                    disabled={isSyncing || !selectedCollectionId}
+                    className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+                  >
+                    {isSyncing ? APP_TEXTS.sync.syncingBtn : APP_TEXTS.sync.syncBtn}
+                  </button>
+                  {syncMessage && (
+                    <div className="p-2 bg-emerald-950/40 border border-emerald-800 text-emerald-400 text-xs rounded-lg">
+                      {syncMessage}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </details>
           </HasRole>
 
           <HasRole canEdit>
@@ -878,6 +929,10 @@ export default function Home() {
                 onAssignCollection={handleAssignToCollection}
                 onDelete={handleDeleteDocument}
                 onDownloadPdf={handleDownloadPdf}
+
+                onGenerateMetadata={handleGenerateMetadata}
+                isGenerating={!!generatingMetadataIds[doc.backendId!]}
+
               />
             ))}
 
@@ -886,19 +941,19 @@ export default function Home() {
                 <button
                   onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
-                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-[color:var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] hover:bg-[color:var(--surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
                 >
-                  {APP_TEXTS.home.pagination.previous}
+                  Anterior
                 </button>
                 <span className="text-xs text-[color:var(--text-secondary)]">
-                  {APP_TEXTS.home.pagination.page} <strong className="text-[color:var(--text-strong)]">{currentPage}</strong> {APP_TEXTS.home.pagination.of} <strong className="text-[color:var(--text-strong)]">{totalPages}</strong>
+                  Página {currentPage} de {totalPages}
                 </span>
                 <button
                   onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
-                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-[color:var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] hover:bg-[color:var(--surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
                 >
-                  {APP_TEXTS.home.pagination.next}
+                  Siguiente
                 </button>
               </div>
             )}
@@ -906,17 +961,36 @@ export default function Home() {
         </div>
       </main>
 
-      <EditMetadataModal
-        isOpen={!!editingItem}
-        editingItem={editingItem}
-        editForm={editForm}
-        globalTags={globalTags}
-        customFields={customFields}
-        setEditForm={setEditForm}
-        onClose={() => setEditingItem(null)}
-        onConfirm={handleConfirmMetadata}
-      />
+      {/* Toast flotante global de notificación[cite: 1] */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl bg-emerald-600 text-white shadow-2xl flex items-center gap-3 animate-bounce">
+          <span>✨</span>
+          <p className="text-xs font-semibold">{toastMessage}</p>
+          <button 
+            onClick={() => setToastMessage(null)} 
+            className="ml-2 text-white hover:text-emerald-200 font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
+      {/* Modal de Progreso de Ingesta Masiva[cite: 2] */}
+      {showIngestModal && (
+        <IngestProgressModal
+          isOpen={showIngestModal}
+          taskId={currentTaskId}
+          onClose={() => {
+            setShowIngestModal(false);
+            setCurrentTaskId(null);
+            fetchDocuments();
+            fetchCollections();
+          }}
+          onSuccess={handleIngestSuccess}
+        />
+      )}
+
+      {/* Visor de PDF si está activo */}
       {viewingDocument && (
         <PDFViewer
           documentId={viewingDocument.id}
@@ -925,53 +999,52 @@ export default function Home() {
         />
       )}
 
+      {/* Modal de Edición de Metadatos */}
+      {editingItem && (
+        <EditMetadataModal
+          isOpen={!!editingItem}
+          editingItem={editingItem}
+          editForm={editForm}
+          setEditForm={setEditForm}
+          customFields={customFields}
+          globalTags={globalTags}
+          onClose={() => setEditingItem(null)}
+          onConfirm={handleConfirmMetadata}
+        />
+      )}
+
+      {/* Modal de Creación de Colección */}
       <CreateCollectionModal
         isOpen={showNewCollectionModal}
         newCollectionName={newCollectionName}
         setNewCollectionName={setNewCollectionName}
-        onClose={() => {
-          setShowNewCollectionModal(false);
-          setModalParentId(undefined);
-        }}
-        onSubmit={handleCreateCollection}
         parentCollectionName={parentCollectionName}
+        onClose={() => setShowNewCollectionModal(false)}
+        onSubmit={handleCreateCollection}
       />
 
-      {/* Añadir este modal al final de los modales en app/page.tsx */}
-      <ConfirmModal
-        isOpen={!!collectionToDelete}
-        title={APP_TEXTS.modals.deleteCollection.title}
-        message={APP_TEXTS.modals.deleteCollection.message}
-        confirmText={APP_TEXTS.modals.deleteCollection.confirmBtn}
-        cancelText={APP_TEXTS.common.cancel}
-        onConfirm={handleConfirmDeleteCollection}
-        onClose={() => setCollectionToDelete(null)}
-      />
-
+      {/* Modal de Configuración / Campos personalizados */}
       <CustomFieldsModal
         isOpen={showConfigModal}
+        customFields={customFields}
         newFieldName={newFieldName}
         setNewFieldName={setNewFieldName}
         newFieldType={newFieldType}
         setNewFieldType={setNewFieldType}
         newFieldOptions={newFieldOptions}
         setNewFieldOptions={setNewFieldOptions}
-        customFields={customFields}
-        onDeleteField={handleDeleteCustomField}
         onClose={() => setShowConfigModal(false)}
         onSubmit={handleCreateCustomField}
+        onDeleteField={handleDeleteCustomField}
       />
 
-      <IngestProgressModal
-        isOpen={showIngestModal}
-        taskId={currentTaskId}
-        onClose={() => {
-          setShowIngestModal(false);
-          setCurrentTaskId(null);
-        }}
-        onSuccess={() => {
-          fetchDocuments();
-        }}
+      {/* Modal de Confirmación de Borrado */}
+      <ConfirmModal
+        isOpen={!!collectionToDelete}
+        title="Eliminar colección"
+        message="¿Estás seguro de que deseas eliminar esta colección? Los documentos contenidos no se eliminarán."
+        onConfirm={handleConfirmDeleteCollection}
+        onClose={() => setCollectionToDelete(null)}
       />
     </div>
   );

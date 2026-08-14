@@ -350,4 +350,12 @@ export const APP_TEXTS = {
     syncingBtn: "Sincronizando...",
     errorNoCollection: "Por favor, selecciona una colección o carpeta específica para sincronizar.",
   },
+  aiMetadata: {
+    generateBtn: '✨ Generar con IA',
+    generatingBtn: 'Generando...',
+    successToast: 'Metadatos generados con éxito',
+    errorToastPrefix: 'Error al generar metadatos: ',
+  },
 } as const;
+  
+

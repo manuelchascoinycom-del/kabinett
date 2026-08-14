@@ -31,6 +31,17 @@ export const IngestProgressModal: React.FC<IngestProgressModalProps> = ({
   const [showLogs, setShowLogs] = useState<boolean>(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Solicitar permisos de notificación de forma segura al abrir el modal
+  useEffect(() => {
+    if (isOpen && typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().catch((err) => {
+          console.error('Error al solicitar permisos de notificación:', err);
+        });
+      }
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen || !taskId) {
       setData(null);
@@ -50,12 +61,25 @@ export const IngestProgressModal: React.FC<IngestProgressModalProps> = ({
         setData(res);
         setErrorMsg(null);
 
-        // Si se completa, llamamos al callback de éxito y dejamos de hacer polling
+        // Si se completa, disparamos notificación nativa, llamamos al callback y detenemos el polling
         if (res.status === 'completed') {
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
           }
+
+          // Lanzar notificación nativa del navegador de forma segura
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification(APP_TEXTS.common.appName, {
+                body: APP_TEXTS.ingestModal.status.completed,
+                icon: '/favicon.ico',
+              });
+            } catch (notifErr) {
+              console.error('Error al mostrar notificación nativa:', notifErr);
+            }
+          }
+
           if (onSuccess) {
             onSuccess();
           }
@@ -64,11 +88,20 @@ export const IngestProgressModal: React.FC<IngestProgressModalProps> = ({
             clearInterval(intervalRef.current);
             intervalRef.current = null;
           }
+          
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification(APP_TEXTS.common.appName, {
+                body: APP_TEXTS.ingestModal.status.failed,
+                icon: '/favicon.ico',
+              });
+            } catch (notifErr) {
+              console.error('Error al mostrar notificación nativa de fallo:', notifErr);
+            }
+          }
         }
       } catch (err: any) {
         console.error('Error fetching ingest status:', err);
-        // No detenemos el polling inmediatamente por un fallo de red temporal,
-        // pero mostramos un mensaje de advertencia visual
         setErrorMsg(err.message || APP_TEXTS.ingestModal.defaultErrorMsg);
       } finally {
         setLoading(false);
@@ -103,17 +136,19 @@ export const IngestProgressModal: React.FC<IngestProgressModalProps> = ({
 
   // Formatear estado de forma amigable
   const getFriendlyStatus = () => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'pending':
         return APP_TEXTS.ingestModal.status.pending;
       case 'processing':
         return APP_TEXTS.ingestModal.status.processing;
+      case 'in_progress':
+        return APP_TEXTS.ingestModal.status.processing || 'En progreso';
       case 'completed':
         return APP_TEXTS.ingestModal.status.completed;
       case 'failed':
         return APP_TEXTS.ingestModal.status.failed;
       default:
-        return status.charAt(0).toUpperCase() + status.slice(1);
+        return status.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
     }
   };
 
