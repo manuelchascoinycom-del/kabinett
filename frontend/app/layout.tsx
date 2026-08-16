@@ -4,6 +4,8 @@ import "./globals.css";
 import { Providers } from './providers';
 import { APP_TEXTS } from "@/app/constants/texts";
 import { DevRoleSwitcher } from "@/components/auth/DevRoleSwitcher";
+import { VersionFooter } from "@/components/layout/VersionFooter/VersionFooter";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -53,6 +55,8 @@ export default function RootLayout({
           {children}
           {/* Widget flotante de simulación de rol solo para desarrollo */}
           {process.env.NODE_ENV === 'development' && <DevRoleSwitcher />}
+          <VersionFooter />
+
         </Providers>
       </body>
     </html>
