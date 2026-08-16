@@ -5,7 +5,7 @@ export const VersionFooter = () => {
 
   return (
     <footer className="fixed bottom-2 right-4 text-[10px] text-[var(--text-secondary)] opacity-50 pointer-events-none select-none">
-      v{version}
+      {version}
     </footer>
   );
 };
