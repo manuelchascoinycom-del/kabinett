@@ -81,6 +81,18 @@ interface UploadItem {
   isConfirmed?: boolean;
 }
 
+// Función para obtener la ruta completa (breadcrumb) de la colección seleccionada
+const getCollectionPath = (id: string, cols: Collection[]): string[] => {
+  for (const col of cols) {
+    if (col.id === id) return [col.name];
+    if (col.children) {
+      const childPath = getCollectionPath(id, col.children);
+      if (childPath.length > 0) return [col.name, ...childPath];
+    }
+  }
+  return [];
+};
+
 export default function Home() {
   const { userRole } = useAuth();
 
@@ -122,8 +134,6 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
   const [modalParentId, setModalParentId] = useState<string | undefined>(undefined);
@@ -146,6 +156,15 @@ export default function Home() {
 
   // Estado para el Toast flotante global[cite: 1]
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+
+  // Calcula el path jerárquico de la colección seleccionada
+  const collectionPath = useMemo(() => {
+    if (!selectedCollectionId) return [];
+    return getCollectionPath(selectedCollectionId, collections);
+  }, [selectedCollectionId, collections]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -912,9 +931,8 @@ export default function Home() {
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-[color:var(--text-strong)]">
               {selectedCollectionId
-                ? `${APP_TEXTS.home.collectionTitlePrefix}${collections.find((c) => c.id === selectedCollectionId)?.name || ''}`
-                : APP_TEXTS.home.rootLibraryTitle}{' '}
-              ({totalGlobalDocuments})
+                ? `Colección: ${collectionPath.join(' > ')} (${totalGlobalDocuments})`
+                : `Todos los documentos (${totalGlobalDocuments})`}
             </h3>
 
             {documents.map((doc) => (
@@ -943,17 +961,17 @@ export default function Home() {
                   disabled={currentPage === 1}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
                 >
-                  Anterior
+                  {APP_TEXTS.common.pagination.previous}
                 </button>
                 <span className="text-xs text-[color:var(--text-secondary)]">
-                  Página {currentPage} de {totalPages}
+                  {APP_TEXTS.common.pagination.page.replace('{currentPage}', currentPage.toString()).replace('{totalPages}', totalPages.toString())}
                 </span>
                 <button
                   onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
                 >
-                  Siguiente
+                  {APP_TEXTS.common.pagination.next}
                 </button>
               </div>
             )}
@@ -1041,8 +1059,8 @@ export default function Home() {
       {/* Modal de Confirmación de Borrado */}
       <ConfirmModal
         isOpen={!!collectionToDelete}
-        title="Eliminar colección"
-        message="¿Estás seguro de que deseas eliminar esta colección? Los documentos contenidos no se eliminarán."
+        title={APP_TEXTS.modals.deleteCollection.title}
+        message={APP_TEXTS.modals.deleteCollection.message}
         onConfirm={handleConfirmDeleteCollection}
         onClose={() => setCollectionToDelete(null)}
       />

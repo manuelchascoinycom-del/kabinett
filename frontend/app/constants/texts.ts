@@ -21,6 +21,11 @@ export const APP_TEXTS = {
     customFieldExample: 'Ej: {fieldName}',
     newSubcollection: 'Nueva Subcolección',
     insideOf: 'Se creará dentro de:',
+    pagination: {
+      previous: 'Anterior',
+      next: 'Siguiente',
+      page: 'Página {currentPage} de {totalPages}',
+    },
   },
   sidebar: {
     collectionsTitle: 'Colecciones',
