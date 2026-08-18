@@ -242,23 +242,25 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           {/* Asignar colección (con subcolecciones jerárquicas) */}
           {flattenedCollections.length > 0 && item.backendId && (
             <HasRole canEdit>
-              <select
-                onChange={(e) => {
-                  if (e.target.value) {
-                    onAssignCollection(item.backendId!, e.target.value);
-                    e.target.value = '';
-                  }
-                }}
-                defaultValue=""
-                className="bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-lg px-2 py-1.5 outline-none hover:border-[color:var(--border-hover)] cursor-pointer"
-              >
-                <option value="" disabled>{T.moveToOption}</option>
-                {flattenedCollections.map((col) => (
-                  <option key={col.id} value={col.id}>
-                    {'\u00A0\u00A0'.repeat(col.level)} {col.level > 0 ? '└─ ' : ''}{col.name}
-                  </option>
-                ))}
-              </select>
+              <div className="min-w-0 max-w-[150px]">
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      onAssignCollection(item.backendId!, e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                  defaultValue=""
+                  className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-lg px-2 py-1.5 outline-none hover:border-[color:var(--border-hover)] cursor-pointer truncate"
+                >
+                  <option value="" disabled>{T.moveToOption}</option>
+                  {flattenedCollections.map((col) => (
+                    <option key={col.id} value={col.id}>
+                      {'\u00A0\u00A0'.repeat(col.level)} {col.level > 0 ? '└─ ' : ''}{col.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </HasRole>
           )}
 
