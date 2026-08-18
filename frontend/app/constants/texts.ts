@@ -22,9 +22,12 @@ export const APP_TEXTS = {
     newSubcollection: 'Nueva Subcolección',
     insideOf: 'Se creará dentro de:',
     pagination: {
-      previous: 'Anterior',
-      next: 'Siguiente',
-      page: 'Página {currentPage} de {totalPages}',
+        previous: 'Anterior',
+        next: 'Siguiente',
+        first: 'Primera',
+        last: 'Última',
+        page: 'Página {currentPage} de {totalPages}',
+        goToPage: 'Ir a página',
     },
   },
   sidebar: {

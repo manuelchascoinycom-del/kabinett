@@ -955,7 +955,14 @@ export default function Home() {
             ))}
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6 pt-4 border-t border-[color:var(--border-color)]">
+              <div className="flex items-center justify-center gap-2 mt-6 pt-4 border-t border-[color:var(--border-color)]">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="px-2 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
+                >
+                  {APP_TEXTS.common.pagination.first}
+                </button>
                 <button
                   onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
@@ -963,15 +970,41 @@ export default function Home() {
                 >
                   {APP_TEXTS.common.pagination.previous}
                 </button>
-                <span className="text-xs text-[color:var(--text-secondary)]">
-                  {APP_TEXTS.common.pagination.page.replace('{currentPage}', currentPage.toString()).replace('{totalPages}', totalPages.toString())}
-                </span>
+                
+                <div className="flex items-center gap-2 mx-2">
+                  <span className="text-xs text-[color:var(--text-secondary)]">
+                    {APP_TEXTS.common.pagination.page.replace('{currentPage}', currentPage.toString()).replace('{totalPages}', totalPages.toString())}
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={totalPages}
+                    placeholder={APP_TEXTS.common.pagination.goToPage}
+                    className="w-16 px-2 py-1 text-xs rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = parseInt(e.currentTarget.value);
+                        if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                          setCurrentPage(val);
+                        }
+                      }
+                    }}
+                  />
+                </div>
+
                 <button
                   onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
                 >
                   {APP_TEXTS.common.pagination.next}
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-2 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
+                >
+                  {APP_TEXTS.common.pagination.last}
                 </button>
               </div>
             )}
