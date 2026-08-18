@@ -143,3 +143,30 @@ textarea {
     cursor: not-allowed;
   }
 }
+
+@layer utilities {
+  /* Estilos para una barra de scroll minimalista y adaptativa al tema */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+  }
+  
+  /* Ocultar barra horizontal y hacer fina la vertical (para Chrome/Edge/Safari) */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px; /* Barra vertical muy finita */
+    height: 0px; /* Anulamos la barra horizontal */
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 10px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-muted);
+  }
+}
