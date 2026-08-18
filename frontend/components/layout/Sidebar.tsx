@@ -35,7 +35,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenConfigModal,
   onDeleteCollection,
 }) => {
-  // Move hooks before rendering logic
+  // Función recursiva para ordenar colecciones alfabéticamente
+  const sortCollections = (cols: Collection[]): Collection[] => {
+    return [...cols]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((col) => ({
+        ...col,
+        children: col.children ? sortCollections(col.children) : undefined,
+      }));
+  };
+
+  const sortedCollections = React.useMemo(() => sortCollections(collections), [collections]);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const [isResizing, setIsResizing] = useState(false);
   const TT = APP_TEXTS.theme;
@@ -155,7 +165,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <div className="space-y-1 pr-1">
-          {collections.map((col) => (
+          {sortedCollections.map((col) => (
             <CollectionTreeItem
               key={col.id}
               collection={col}
