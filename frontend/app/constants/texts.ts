@@ -21,6 +21,8 @@ export const APP_TEXTS = {
     customFieldExample: 'Ej: {fieldName}',
     newSubcollection: 'Nueva Subcolección',
     insideOf: 'Se creará dentro de:',
+    searchPlaceholder: 'Buscar colección...',
+    noResults: 'No se encontraron resultados',
     pagination: {
         previous: 'Anterior',
         next: 'Siguiente',

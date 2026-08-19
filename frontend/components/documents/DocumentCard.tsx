@@ -41,10 +41,14 @@ interface FlattenedCollection {
   level: number;
 }
 
-// Función recursiva para aplanar las colecciones y calcular su nivel de anidación
+// Función recursiva para aplanar las colecciones y calcular su nivel de anidación, ordenándolas alfabéticamente
 const flattenCollections = (cols: CollectionNode[], level = 0): FlattenedCollection[] => {
   let result: FlattenedCollection[] = [];
-  for (const col of cols) {
+  
+  // Ordenar alfabéticamente por nombre
+  const sortedCols = [...cols].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+  for (const col of sortedCols) {
     result.push({ id: col.id, name: col.name, level });
     if (col.children && col.children.length > 0) {
       result = result.concat(flattenCollections(col.children, level + 1));
