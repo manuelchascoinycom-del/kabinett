@@ -1,13 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { APP_TEXTS } from '@/app/constants/texts';
 import { HasRole } from '@/components/auth/HasRole';
+import { Collection as BaseCollection } from '@/services/collectionService';
 
-export interface Collection {
-  id: string;
-  name: string;
-  document_count?: number;
+export interface Collection extends BaseCollection {
+  // Aseguramos que los campos necesarios existen
+  document_ids?: string[];
   children?: Collection[];
 }
+
+// Función auxiliar mejorada para calcular el total acumulado de la rama recursivamente
+const calculateUniqueTotalDocuments = (collection: Collection): number => {
+  const uniqueIds = new Set<string>();
+  let fallbackSum = 0;
+  let hasDocumentIds = false;
+
+  const traverse = (col: Collection) => {
+    // Si existen IDs detallados, los metemos al Set para asegurar unicidad
+    if (col.document_ids && Array.isArray(col.document_ids) && col.document_ids.length > 0) {
+      hasDocumentIds = true;
+      col.document_ids.forEach((id) => uniqueIds.add(id));
+    }
+    
+    // Sumamos también el conteo directo de este nodo (tanto propio como acumulado si viene del server)
+    fallbackSum += col.document_count ?? 0;
+    
+    // Recorremos hijos recursivamente
+    if (col.children && col.children.length > 0) {
+      col.children.forEach(traverse);
+    }
+  };
+
+  traverse(collection);
+  
+  // Si tenemos IDs reales, usamos el tamaño del Set único. Si no, usamos la suma recursiva de los contadores.
+  return hasDocumentIds ? uniqueIds.size : fallbackSum;
+};
 
 // Subcomponente recursivo interno para las colecciones y subcolecciones
 interface CollectionTreeItemProps {
@@ -15,7 +43,7 @@ interface CollectionTreeItemProps {
   selectedCollectionId: string | null;
   onSelect: (id: string) => void;
   onDelete?: (id: string) => void;
-  onAddSubcollection?: (parentId: string) => void; // NUEVO
+  onAddSubcollection?: (parentId: string) => void;
   depth?: number;
 }
 
@@ -27,10 +55,14 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
   onAddSubcollection,
   depth = 0,
 }) => {
-  
   const [isOpen, setIsOpen] = useState(false);
   const isSelected = selectedCollectionId === collection.id;
   const hasChildren = collection.children && collection.children.length > 0;
+
+  // Calculamos el total acumulado usando useMemo para optimizar
+  const totalDocuments = useMemo(() => {
+    return calculateUniqueTotalDocuments(collection);
+  }, [collection]);
 
   return (
     <div className="w-full">
@@ -63,14 +95,12 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* NUEVO: Botón para añadir subcolección */}
           {onAddSubcollection && (
             <HasRole canEdit>
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Forzamos a que se abra el desplegable para que el usuario vea la nueva colección al crearla
                   setIsOpen(true);
                   onAddSubcollection(collection.id);
                 }}
@@ -99,7 +129,7 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
           )}
 
           <span className="text-[10px] bg-[var(--panel-bg)] border border-[color:var(--border-color)] text-[color:var(--text-muted)] px-2 py-0.5 rounded-full">
-            {collection.document_count ?? 0}
+            {totalDocuments}
           </span>
         </div>
       </div>
