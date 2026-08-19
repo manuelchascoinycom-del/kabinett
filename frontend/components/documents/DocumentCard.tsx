@@ -74,6 +74,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [collectionSearchQuery, setCollectionSearchQuery] = useState("");
 
   const title = item.confirmedMetadata?.title || item.suggestedMetadata?.title || item.file.name;
   const composer = item.confirmedMetadata?.composer || item.suggestedMetadata?.composer;
@@ -246,23 +247,40 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           {/* Asignar colección (con subcolecciones jerárquicas) */}
           {flattenedCollections.length > 0 && item.backendId && (
             <HasRole canEdit>
-              <div className="min-w-0 max-w-[150px]">
+              <div className="relative min-w-[240px] w-64">
+                <div className="px-2 py-1 bg-[var(--input-bg)] border border-[color:var(--border-color)] rounded-t-lg">
+                  <input
+                    type="text"
+                    placeholder={APP_TEXTS.common.searchPlaceholder}
+                    value={collectionSearchQuery}
+                    onChange={(e) => setCollectionSearchQuery(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-transparent text-xs outline-none text-[color:var(--text-secondary)] placeholder:text-[color:var(--text-tertiary)]"
+                  />
+                </div>
                 <select
                   onChange={(e) => {
                     if (e.target.value) {
                       onAssignCollection(item.backendId!, e.target.value);
                       e.target.value = '';
+                      setCollectionSearchQuery('');
                     }
                   }}
                   defaultValue=""
-                  className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-lg px-2 py-1.5 outline-none hover:border-[color:var(--border-hover)] cursor-pointer truncate"
+                  className="w-full bg-[var(--input-bg)] border-x border-b border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-b-lg px-2 py-1.5 outline-none hover:border-[color:var(--border-hover)] cursor-pointer truncate"
                 >
-                  <option value="" disabled>{T.moveToOption}</option>
-                  {flattenedCollections.map((col) => (
-                    <option key={col.id} value={col.id}>
-                      {'\u00A0\u00A0'.repeat(col.level)} {col.level > 0 ? '└─ ' : ''}{col.name}
-                    </option>
-                  ))}
+                  <option value="" disabled>
+                    {flattenedCollections.filter((col) => 
+                      col.name.toLowerCase().includes(collectionSearchQuery.toLowerCase())
+                    ).length > 0 ? T.moveToOption : APP_TEXTS.common.noResults}
+                  </option>
+                  {flattenedCollections
+                    .filter((col) => col.name.toLowerCase().includes(collectionSearchQuery.toLowerCase()))
+                    .map((col) => (
+                      <option key={col.id} value={col.id}>
+                        {'\u00A0\u00A0'.repeat(col.level)} {col.level > 0 ? '└─ ' : ''}{col.name}
+                      </option>
+                    ))}
                 </select>
               </div>
             </HasRole>
