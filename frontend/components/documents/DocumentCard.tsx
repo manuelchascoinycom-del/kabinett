@@ -41,10 +41,14 @@ interface FlattenedCollection {
   level: number;
 }
 
-// Función recursiva para aplanar las colecciones y calcular su nivel de anidación
+// Función recursiva para aplanar las colecciones y calcular su nivel de anidación, ordenándolas alfabéticamente
 const flattenCollections = (cols: CollectionNode[], level = 0): FlattenedCollection[] => {
   let result: FlattenedCollection[] = [];
-  for (const col of cols) {
+  
+  // Ordenar alfabéticamente por nombre
+  const sortedCols = [...cols].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+  for (const col of sortedCols) {
     result.push({ id: col.id, name: col.name, level });
     if (col.children && col.children.length > 0) {
       result = result.concat(flattenCollections(col.children, level + 1));
@@ -70,6 +74,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [collectionSearchQuery, setCollectionSearchQuery] = useState("");
 
   const title = item.confirmedMetadata?.title || item.suggestedMetadata?.title || item.file.name;
   const composer = item.confirmedMetadata?.composer || item.suggestedMetadata?.composer;
@@ -139,7 +144,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         <div className="space-y-1.5 flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm">{T.fileIcon}</span>
-            <h4 className="text-xs font-bold text-[color:var(--text-strong)] truncate">{title}</h4>
+            <h4 className="text-lg font-bold text-white truncate">{title}</h4>
             {item.isConfirmed && (
               <span className="text-[10px] bg-[var(--accent-surface)] text-[color:var(--accent)] px-2 py-0.5 rounded border border-[color:var(--accent-border)]">
                 {T.confirmedBadge}
@@ -147,7 +152,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             )}
           </div>
 
-          {composer && <p className="text-xs text-[color:var(--text-muted)] font-medium">{T.composerLabel} {composer}</p>}
+          {composer && <p className="text-sm text-slate-400 font-medium">{T.composerLabel} {composer}</p>}
 
           {customEntries.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -242,23 +247,42 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           {/* Asignar colección (con subcolecciones jerárquicas) */}
           {flattenedCollections.length > 0 && item.backendId && (
             <HasRole canEdit>
-              <select
-                onChange={(e) => {
-                  if (e.target.value) {
-                    onAssignCollection(item.backendId!, e.target.value);
-                    e.target.value = '';
-                  }
-                }}
-                defaultValue=""
-                className="bg-[var(--input-bg)] border border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-lg px-2 py-1.5 outline-none hover:border-[color:var(--border-hover)] cursor-pointer"
-              >
-                <option value="" disabled>{T.moveToOption}</option>
-                {flattenedCollections.map((col) => (
-                  <option key={col.id} value={col.id}>
-                    {'\u00A0\u00A0'.repeat(col.level)} {col.level > 0 ? '└─ ' : ''}{col.name}
+              <div className="relative min-w-[240px] w-64">
+                <div className="px-2 py-1 bg-[var(--input-bg)] border border-[color:var(--border-color)] rounded-t-lg">
+                  <input
+                    type="text"
+                    placeholder={APP_TEXTS.common.searchPlaceholder}
+                    value={collectionSearchQuery}
+                    onChange={(e) => setCollectionSearchQuery(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-transparent text-xs outline-none text-[color:var(--text-secondary)] placeholder:text-[color:var(--text-tertiary)]"
+                  />
+                </div>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      onAssignCollection(item.backendId!, e.target.value);
+                      e.target.value = '';
+                      setCollectionSearchQuery('');
+                    }
+                  }}
+                  defaultValue=""
+                  className="w-full bg-[var(--input-bg)] border-x border-b border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-b-lg px-2 py-1.5 outline-none hover:border-[color:var(--border-hover)] cursor-pointer truncate"
+                >
+                  <option value="" disabled>
+                    {flattenedCollections.filter((col) => 
+                      col.name.toLowerCase().includes(collectionSearchQuery.toLowerCase())
+                    ).length > 0 ? T.moveToOption : APP_TEXTS.common.noResults}
                   </option>
-                ))}
-              </select>
+                  {flattenedCollections
+                    .filter((col) => col.name.toLowerCase().includes(collectionSearchQuery.toLowerCase()))
+                    .map((col) => (
+                      <option key={col.id} value={col.id}>
+                        {'\u00A0\u00A0'.repeat(col.level)} {col.level > 0 ? '└─ ' : ''}{col.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
             </HasRole>
           )}
 

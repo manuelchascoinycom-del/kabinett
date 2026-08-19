@@ -3,7 +3,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { APP_TEXTS } from '@/app/constants/texts';
-import { documentService } from '@/services/documentService'; // 👈 Importa tu servicio
+import { documentService } from '@/services/documentService';
+import { useAuth } from '@/context/AuthContext';
+import { ConfirmModal } from '../modals/ConfirmModal';
 
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
@@ -21,8 +23,11 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
   const [numPages, setNumPages] = useState<number>(0);
   const [scale, setScale] = useState<number>(1.2);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isRepairing, setIsRepairing] = useState<boolean>(false);
+  const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isAtrilMode, setIsAtrilMode] = useState<boolean>(false);
+  const { hasRole, token } = useAuth();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -145,6 +150,31 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
       setScale(targetScale);
     });
   };
+  const handleNormalize = async () => {
+    setIsRepairing(true);
+    try {
+      await documentService.normalizeManual(documentId);
+      setShowSuccessModal(true);
+      
+      // Forzar recarga del visor
+      setPdfDoc(null);
+      setLoading(true);
+      const blob = await documentService.downloadPdf(documentId);
+      const arrayBuffer = await blob.arrayBuffer();
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer, useSystemFonts: true, enableXfa: false, verbosity: 0 });
+      loadingTaskRef.current = loadingTask;
+      const pdf = await loadingTask.promise;
+      setPdfDoc(pdf);
+      setNumPages(pdf.numPages);
+      setLoading(false);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || T.repairError);
+    } finally {
+      setIsRepairing(false);
+    }
+  };
+
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -264,8 +294,18 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
             onClick={onClose}
             className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900 border border-red-500/30 text-red-400 text-xs font-semibold rounded-lg transition-all"
           >
-            {T.closeBtn}
+            ✕
           </button>
+          {(hasRole(['Admin', 'Editor'])) && (
+            <button
+              onClick={handleNormalize}
+              disabled={isRepairing}
+              className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 disabled:bg-yellow-800 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1 shadow-md"
+              title={T.repairBtn}
+            >
+              {isRepairing ? T.repairingBtn : T.repairBtn}
+            </button>
+          )}
         </div>
       </header>
 
@@ -281,6 +321,16 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
           {T.exitAtrilBtn}
         </button>
       )}
+
+      <ConfirmModal
+        isOpen={showSuccessModal}
+        title={APP_TEXTS.common.normalize.successTitle}
+        message={APP_TEXTS.common.normalize.successMessage}
+        confirmText={APP_TEXTS.common.confirm}
+        isDanger={false}
+        onConfirm={() => setShowSuccessModal(false)}
+        onClose={() => setShowSuccessModal(false)}
+      />
 
       <main
         ref={containerRef}

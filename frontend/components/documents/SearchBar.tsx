@@ -14,7 +14,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 }) => {
   const T = APP_TEXTS.searchBar;
   return (
-    <div className="relative mb-6">
+    <div className="relative mb-0">
       <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[color:var(--text-muted)] text-sm">
         {T.icon}
       </div>

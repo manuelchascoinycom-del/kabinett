@@ -16,3 +16,11 @@
 
 ## 4. Gestión de Estado y Filtros
 - Tras cualquier mutación de datos (creación, borrado, sincronización o actualización de metadatos por IA), los estados locales y las listas filtradas deben recalcularse inmediatamente para reflejar los cambios en tiempo real sin recargar la página.
+
+- NEVER use heavy terminal search commands (like `dir /s`, `ls -r`, or complex greps) to find files or code snippets. 
+- If a file path is needed, ask the user or look directly into known directories.
+- Go straight to reading or editing the specified files without exploratory terminal commands.
+- Minimize tool-use steps and be token-efficient.
+
+- NEVER use terminal commands (like dir, ls, find, or grep) to search for files or check paths.
+- ALWAYS use the native file viewing/reading tool directly with the provided file path. Do not exploratory-search.

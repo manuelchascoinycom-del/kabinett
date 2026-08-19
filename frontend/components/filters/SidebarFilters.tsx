@@ -12,7 +12,7 @@ interface Collection {
 interface SidebarFiltersProps {
   collections: Collection[];
   selectedCollectionId: string | null;
-  totalGlobalDocuments: number;
+  totalGlobalCount: number;
   onSelectCollection: (id: string | null) => void;
   onOpenNewCollectionModal: () => void;
   onOpenConfigModal: () => void;
@@ -21,7 +21,7 @@ interface SidebarFiltersProps {
 export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
   collections,
   selectedCollectionId,
-  totalGlobalDocuments,
+  totalGlobalCount,
   onSelectCollection,
   onOpenNewCollectionModal,
   onOpenConfigModal,
@@ -50,7 +50,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
           >
             <span>{S.allDocumentsIcon} {C.allDocuments}</span>
             <span className="text-[10px] bg-slate-800/80 px-2 py-0.5 rounded-full text-slate-400">
-              {totalGlobalDocuments}
+              {totalGlobalCount}
             </span>
           </button>
 
