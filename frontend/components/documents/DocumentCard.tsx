@@ -143,7 +143,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         <div className="space-y-1.5 flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm">{T.fileIcon}</span>
-            <h4 className="text-xs font-bold text-[color:var(--text-strong)] truncate">{title}</h4>
+            <h4 className="text-lg font-bold text-white truncate">{title}</h4>
             {item.isConfirmed && (
               <span className="text-[10px] bg-[var(--accent-surface)] text-[color:var(--accent)] px-2 py-0.5 rounded border border-[color:var(--accent-border)]">
                 {T.confirmedBadge}
@@ -151,7 +151,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             )}
           </div>
 
-          {composer && <p className="text-xs text-[color:var(--text-muted)] font-medium">{T.composerLabel} {composer}</p>}
+          {composer && <p className="text-sm text-slate-400 font-medium">{T.composerLabel} {composer}</p>}
 
           {customEntries.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-0.5">

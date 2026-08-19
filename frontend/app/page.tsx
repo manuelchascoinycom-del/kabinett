@@ -809,6 +809,8 @@ export default function Home() {
     return findName(collections);
   }, [modalParentId, collections]);
 
+  const [isFiltersVisible, setIsFiltersVisible] = useState(true);
+
   return (
     <div className="flex min-h-screen bg-[var(--app-bg)] text-[color:var(--text-primary)] font-sans transition-colors duration-200">
       <Sidebar
@@ -827,37 +829,50 @@ export default function Home() {
         onDeleteCollection={handleDeleteCollectionClick}
       />
 
-      <FacetedFilters
-        facets={facets}
-        selectedComposers={selectedComposers}
-        selectedTags={selectedTags}
-        selectedCustomFilters={selectedCustomFilters}
-        customFields={customFields}
-        hasActiveFilters={hasActiveFilters}
-        onToggleComposer={toggleComposer}
-        onToggleTag={toggleTag}
-        onChangeCustomFilter={(fieldName, value) =>
-          setSelectedCustomFilters({ ...selectedCustomFilters, [fieldName]: value })
-        }
-        onClearAllFilters={clearAllFilters}
-      />
+      <div className={`transition-all duration-300 ease-in-out ${isFiltersVisible ? 'w-64' : 'w-0'} overflow-hidden relative border-r border-[color:var(--border-color)]`}>
+        <div className="w-64">
+           <FacetedFilters
+            facets={facets}
+            selectedComposers={selectedComposers}
+            selectedTags={selectedTags}
+            selectedCustomFilters={selectedCustomFilters}
+            customFields={customFields}
+            hasActiveFilters={hasActiveFilters}
+            onToggleComposer={toggleComposer}
+            onToggleTag={toggleTag}
+            onChangeCustomFilter={(fieldName, value) =>
+              setSelectedCustomFilters({ ...selectedCustomFilters, [fieldName]: value })
+            }
+            onClearAllFilters={clearAllFilters}
+          />
+        </div>
+      </div>
 
       <main className="flex-1 p-8 overflow-y-auto">
-        <div className="max-w-4xl mx-auto">
-          <SearchBar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            isSearching={isSearching}
-          />
-          {/* Selector de Ordenamiento */}
-          <div className="flex justify-end my-4">
+        {/* Botón para alternar filtros */}
+        <button
+          onClick={() => setIsFiltersVisible(!isFiltersVisible)}
+          className="mb-2 text-xs font-semibold text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors"
+        >
+          {isFiltersVisible ? '« Ocultar filtros' : '» Mostrar filtros'}
+        </button>
+        
+        <div className="w-full">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex-1">
+              <SearchBar
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                isSearching={isSearching}
+              />
+            </div>
             <select
               value={`${sortOption.sort_by}:${sortOption.order}`}
               onChange={(e) => {
                 const [sort_by, order] = e.target.value.split(':');
                 setSortOption({ sort_by, order });
               }}
-              className="px-3 py-1.5 text-xs rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)]"
+              className="shrink-0 h-[46px] px-4 text-xs rounded-xl bg-[var(--panel-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] cursor-pointer shadow-md focus:outline-none focus:border-emerald-500"
             >
               <option value="created_at:desc">{APP_TEXTS.sorting.options.newest}</option>
               <option value="created_at:asc">{APP_TEXTS.sorting.options.oldest}</option>
