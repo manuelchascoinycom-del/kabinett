@@ -168,6 +168,8 @@ export default function Home() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
 
+  const [sortOption, setSortOption] = useState({ sort_by: 'created_at', order: 'desc' });
+
   // Calcula el path jerárquico de la colección seleccionada
   const collectionPath = useMemo(() => {
     if (!selectedCollectionId) return [];
@@ -319,6 +321,8 @@ export default function Home() {
         custom_fields: selectedCustomFilters,
         page: currentPage,
         limit: itemsPerPage,
+        sort_by: sortOption.sort_by,
+        order: sortOption.order,
       };
 
       const response: any = await documentService.filter(payload);
@@ -351,7 +355,7 @@ export default function Home() {
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters, currentPage, itemsPerPage]);
+  }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters, currentPage, itemsPerPage, sortOption]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -845,6 +849,23 @@ export default function Home() {
             setSearchQuery={setSearchQuery}
             isSearching={isSearching}
           />
+          {/* Selector de Ordenamiento */}
+          <div className="flex justify-end my-4">
+            <select
+              value={`${sortOption.sort_by}:${sortOption.order}`}
+              onChange={(e) => {
+                const [sort_by, order] = e.target.value.split(':');
+                setSortOption({ sort_by, order });
+              }}
+              className="px-3 py-1.5 text-xs rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)]"
+            >
+              <option value="created_at:desc">{APP_TEXTS.sorting.options.newest}</option>
+              <option value="created_at:asc">{APP_TEXTS.sorting.options.oldest}</option>
+              <option value="filename:asc">{APP_TEXTS.sorting.options.nameAsc}</option>
+              <option value="filename:desc">{APP_TEXTS.sorting.options.nameDesc}</option>
+            </select>
+          </div>
+
 
           <HasRole canEdit>
             <Dropzone

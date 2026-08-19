@@ -374,7 +374,13 @@ export const APP_TEXTS = {
     successToast: 'Metadatos generados con éxito',
     errorToastPrefix: 'Error al generar metadatos: ',
   },
+  sorting: {
+    label: 'Ordenar por:',
+    options: {
+      newest: 'Más recientes primero',
+      oldest: 'Más antiguos primero',
+      nameAsc: 'Nombre (A-Z)',
+      nameDesc: 'Nombre (Z-A)',
+    },
+  },
 } as const;
-  
-  
-

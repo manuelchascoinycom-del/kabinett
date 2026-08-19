@@ -34,12 +34,14 @@ export interface FilterPayload {
   custom_fields?: Record<string, any>;
   page?: number;
   limit?: number;
+  sort_by?: string;
+  order?: string;
+
 }
 
 export const documentService = {
-  // Obtener lista general con paginación
-  getAll: async (page = 1, limit = 20): Promise<DocumentListResponse> => {
-    return fetchApi<DocumentListResponse>(`/documents?page=${page}&limit=${limit}`);
+  getAll: async (page = 1, limit = 20, sort_by = 'created_at', order = 'desc'): Promise<DocumentListResponse> => {
+    return fetchApi<DocumentListResponse>(`/documents?page=${page}&limit=${limit}&sort_by=${sort_by}&order=${order}`);
   },
 
   // Filtrar documentos con paginación

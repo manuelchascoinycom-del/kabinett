@@ -179,12 +179,22 @@ def scan_dry_run_endpoint(
 def list_documents(
     page: int = 1,
     limit: int = 20,
+    sort_by: Optional[str] = "created_at",
+    order: Optional[str] = "desc",
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
     offset = (page - 1) * limit
     
     query = db.query(models.Document)
+    # Ordenamiento dinámico
+    sort_column = getattr(models.Document, sort_by, None)
+    if sort_column is not None:
+        if order == "desc":
+            query = query.order_by(sort_column.desc())
+        else:
+            query = query.order_by(sort_column.asc())
+
     total_docs = query.count()
     docs = query.offset(offset).limit(limit).all()
     
