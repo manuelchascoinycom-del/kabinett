@@ -5,6 +5,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, Depends, Backgro
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from utils.pdf_utils import force_normalize_pdf
 from database import get_db, SessionLocal
 import models
 from schemas.document import ConfirmMetadataSchema, DocumentExternalCreate, DocumentResponse, ScanRequest, IngestStatusResponse, SyncRequest
@@ -13,6 +14,8 @@ from services.task_tracker import task_tracker
 from services.extractor import extract_text_from_first_pages
 from services.ai_service import analyze_document_metadata
 from dependencies import require_roles  # <--- Dependencia de RBAC
+
+import fitz  # PyMuPDF
 
 router = APIRouter(
     prefix="/documents",
@@ -176,12 +179,22 @@ def scan_dry_run_endpoint(
 def list_documents(
     page: int = 1,
     limit: int = 20,
+    sort_by: Optional[str] = "created_at",
+    order: Optional[str] = "desc",
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
     offset = (page - 1) * limit
     
     query = db.query(models.Document)
+    # Ordenamiento dinámico
+    sort_column = getattr(models.Document, sort_by, None)
+    if sort_column is not None:
+        if order == "desc":
+            query = query.order_by(sort_column.desc())
+        else:
+            query = query.order_by(sort_column.asc())
+
     total_docs = query.count()
     docs = query.offset(offset).limit(limit).all()
     
@@ -596,3 +609,45 @@ def generate_metadata_manually(
 
     return doc
 
+@router.post("/{doc_id}/normalize-manual", status_code=status.HTTP_200_OK)
+async def normalize_document_manually(
+    doc_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))
+):
+    """
+    Endpoint bajo demanda para reparar/normalizar un PDF que no se muestra bien en el visor.
+    """
+    # 1. Buscar el documento en la base de datos
+    document = db.query(models.Document).filter(models.Document.id == doc_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento no encontrado.")
+        
+    if not os.path.exists(document.storage_path):
+        raise HTTPException(status_code=404, detail="El archivo físico asociado no existe en el servidor.")
+
+    try:
+        print(f"🛠️ Iniciando normalización manual para el documento: {document.filename}")
+        
+        # 2. Ejecutar la normalización forzada sobre el archivo existente
+        success = force_normalize_pdf(document.storage_path)
+        if not success:
+            raise HTTPException(status_code=500, detail="Fallo interno al procesar y reconstruir el PDF.")
+
+        # 3. Actualizar metadatos en la base de datos (nuevo tamaño y estado a READY)
+        document.file_size = os.path.getsize(document.storage_path)
+        document.status = models.DocumentStatus.READY
+        db.commit()
+        db.refresh(document)
+
+        return {
+            "id": str(document.id),
+            "filename": document.filename,
+            "status": document.status,
+            "new_file_size": document.file_size,
+            "message": "Documento normalizado correctamente bajo demanda y marcado como listo."
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error en la normalización: {str(e)}")

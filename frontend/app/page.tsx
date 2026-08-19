@@ -81,6 +81,18 @@ interface UploadItem {
   isConfirmed?: boolean;
 }
 
+// Función para obtener la ruta completa (breadcrumb) de la colección seleccionada
+const getCollectionPath = (id: string, cols: Collection[]): string[] => {
+  for (const col of cols) {
+    if (col.id === id) return [col.name];
+    if (col.children) {
+      const childPath = getCollectionPath(id, col.children);
+      if (childPath.length > 0) return [col.name, ...childPath];
+    }
+  }
+  return [];
+};
+
 export default function Home() {
   const { userRole } = useAuth();
 
@@ -122,12 +134,18 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
   const [modalParentId, setModalParentId] = useState<string | undefined>(undefined);
+  const [totalGlobalCount, setTotalGlobalCount] = useState<number>(0);
   const [totalGlobalDocuments, setTotalGlobalDocuments] = useState<number>(0);
+
+  // Cargar el total global al montar
+  useEffect(() => {
+    documentService.getAll(1, 1).then(res => {
+      setTotalGlobalCount(res.total);
+    }).catch(console.error);
+  }, []);
 
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -146,6 +164,17 @@ export default function Home() {
 
   // Estado para el Toast flotante global[cite: 1]
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+
+  const [sortOption, setSortOption] = useState({ sort_by: 'created_at', order: 'desc' });
+
+  // Calcula el path jerárquico de la colección seleccionada
+  const collectionPath = useMemo(() => {
+    if (!selectedCollectionId) return [];
+    return getCollectionPath(selectedCollectionId, collections);
+  }, [selectedCollectionId, collections]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -292,6 +321,8 @@ export default function Home() {
         custom_fields: selectedCustomFilters,
         page: currentPage,
         limit: itemsPerPage,
+        sort_by: sortOption.sort_by,
+        order: sortOption.order,
       };
 
       const response: any = await documentService.filter(payload);
@@ -324,7 +355,7 @@ export default function Home() {
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters, currentPage, itemsPerPage]);
+  }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters, currentPage, itemsPerPage, sortOption]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -778,10 +809,13 @@ export default function Home() {
     return findName(collections);
   }, [modalParentId, collections]);
 
+  const [isFiltersVisible, setIsFiltersVisible] = useState(true);
+
   return (
     <div className="flex min-h-screen bg-[var(--app-bg)] text-[color:var(--text-primary)] font-sans transition-colors duration-200">
       <Sidebar
         totalGlobalDocuments={totalGlobalDocuments}
+        totalGlobalCount={totalGlobalCount}
         selectedCollectionId={selectedCollectionId}
         setSelectedCollectionId={setSelectedCollectionId}
         collections={collections}
@@ -795,28 +829,58 @@ export default function Home() {
         onDeleteCollection={handleDeleteCollectionClick}
       />
 
-      <FacetedFilters
-        facets={facets}
-        selectedComposers={selectedComposers}
-        selectedTags={selectedTags}
-        selectedCustomFilters={selectedCustomFilters}
-        customFields={customFields}
-        hasActiveFilters={hasActiveFilters}
-        onToggleComposer={toggleComposer}
-        onToggleTag={toggleTag}
-        onChangeCustomFilter={(fieldName, value) =>
-          setSelectedCustomFilters({ ...selectedCustomFilters, [fieldName]: value })
-        }
-        onClearAllFilters={clearAllFilters}
-      />
+      <div className={`transition-all duration-300 ease-in-out ${isFiltersVisible ? 'w-64' : 'w-0'} overflow-hidden relative border-r border-[color:var(--border-color)]`}>
+        <div className="w-64">
+           <FacetedFilters
+            facets={facets}
+            selectedComposers={selectedComposers}
+            selectedTags={selectedTags}
+            selectedCustomFilters={selectedCustomFilters}
+            customFields={customFields}
+            hasActiveFilters={hasActiveFilters}
+            onToggleComposer={toggleComposer}
+            onToggleTag={toggleTag}
+            onChangeCustomFilter={(fieldName, value) =>
+              setSelectedCustomFilters({ ...selectedCustomFilters, [fieldName]: value })
+            }
+            onClearAllFilters={clearAllFilters}
+          />
+        </div>
+      </div>
 
       <main className="flex-1 p-8 overflow-y-auto">
-        <div className="max-w-4xl mx-auto">
-          <SearchBar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            isSearching={isSearching}
-          />
+        {/* Botón para alternar filtros */}
+        <button
+          onClick={() => setIsFiltersVisible(!isFiltersVisible)}
+          className="mb-2 text-xs font-semibold text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors"
+        >
+          {isFiltersVisible ? '« Ocultar filtros' : '» Mostrar filtros'}
+        </button>
+        
+        <div className="w-full">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex-1">
+              <SearchBar
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                isSearching={isSearching}
+              />
+            </div>
+            <select
+              value={`${sortOption.sort_by}:${sortOption.order}`}
+              onChange={(e) => {
+                const [sort_by, order] = e.target.value.split(':');
+                setSortOption({ sort_by, order });
+              }}
+              className="shrink-0 h-[46px] px-4 text-xs rounded-xl bg-[var(--panel-bg)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] cursor-pointer shadow-md focus:outline-none focus:border-emerald-500"
+            >
+              <option value="created_at:desc">{APP_TEXTS.sorting.options.newest}</option>
+              <option value="created_at:asc">{APP_TEXTS.sorting.options.oldest}</option>
+              <option value="filename:asc">{APP_TEXTS.sorting.options.nameAsc}</option>
+              <option value="filename:desc">{APP_TEXTS.sorting.options.nameDesc}</option>
+            </select>
+          </div>
+
 
           <HasRole canEdit>
             <Dropzone
@@ -912,9 +976,8 @@ export default function Home() {
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-[color:var(--text-strong)]">
               {selectedCollectionId
-                ? `${APP_TEXTS.home.collectionTitlePrefix}${collections.find((c) => c.id === selectedCollectionId)?.name || ''}`
-                : APP_TEXTS.home.rootLibraryTitle}{' '}
-              ({totalGlobalDocuments})
+                ? `Colección: ${collectionPath.join(' > ')} (${totalGlobalDocuments})`
+                : `Todos los documentos (${totalGlobalDocuments})`}
             </h3>
 
             {documents.map((doc) => (
@@ -937,23 +1000,56 @@ export default function Home() {
             ))}
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6 pt-4 border-t border-[color:var(--border-color)]">
+              <div className="flex items-center justify-center gap-2 mt-6 pt-4 border-t border-[color:var(--border-color)]">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="px-2 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
+                >
+                  {APP_TEXTS.common.pagination.first}
+                </button>
                 <button
                   onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
                 >
-                  Anterior
+                  {APP_TEXTS.common.pagination.previous}
                 </button>
-                <span className="text-xs text-[color:var(--text-secondary)]">
-                  Página {currentPage} de {totalPages}
-                </span>
+                
+                <div className="flex items-center gap-2 mx-2">
+                  <span className="text-xs text-[color:var(--text-secondary)]">
+                    {APP_TEXTS.common.pagination.page.replace('{currentPage}', currentPage.toString()).replace('{totalPages}', totalPages.toString())}
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={totalPages}
+                    placeholder={APP_TEXTS.common.pagination.goToPage}
+                    className="w-16 px-2 py-1 text-xs rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = parseInt(e.currentTarget.value);
+                        if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                          setCurrentPage(val);
+                        }
+                      }
+                    }}
+                  />
+                </div>
+
                 <button
                   onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
                 >
-                  Siguiente
+                  {APP_TEXTS.common.pagination.next}
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-2 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
+                >
+                  {APP_TEXTS.common.pagination.last}
                 </button>
               </div>
             )}
@@ -1041,8 +1137,8 @@ export default function Home() {
       {/* Modal de Confirmación de Borrado */}
       <ConfirmModal
         isOpen={!!collectionToDelete}
-        title="Eliminar colección"
-        message="¿Estás seguro de que deseas eliminar esta colección? Los documentos contenidos no se eliminarán."
+        title={APP_TEXTS.modals.deleteCollection.title}
+        message={APP_TEXTS.modals.deleteCollection.message}
         onConfirm={handleConfirmDeleteCollection}
         onClose={() => setCollectionToDelete(null)}
       />

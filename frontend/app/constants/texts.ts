@@ -21,6 +21,20 @@ export const APP_TEXTS = {
     customFieldExample: 'Ej: {fieldName}',
     newSubcollection: 'Nueva Subcolección',
     insideOf: 'Se creará dentro de:',
+    searchPlaceholder: 'Buscar colección...',
+    noResults: 'No se encontraron resultados',
+    pagination: {
+        previous: 'Anterior',
+        next: 'Siguiente',
+        first: 'Primera',
+        last: 'Última',
+        page: 'Página {currentPage} de {totalPages}',
+        goToPage: 'Ir a página',
+    },
+    normalize: {
+      successTitle: 'Normalización completada',
+      successMessage: 'PDF reparado exitosamente. El documento ya está listo y optimizado.',
+    },
   },
   sidebar: {
     collectionsTitle: 'Colecciones',
@@ -180,6 +194,10 @@ export const APP_TEXTS = {
     loadPdfErrorText: 'No se pudo cargar el archivo PDF.',
     loadPdfErrorLog: 'Error al cargar el PDF:',
     renderErrorLog: 'Error al renderizar página:',
+    repairBtn: '🛠️ Reparar PDF',
+    repairingBtn: 'Reparando...',
+    repairSuccess: 'PDF reparado exitosamente',
+    repairError: 'Hubo un error al intentar reparar el PDF',
   },
   facetedFilters: {
     titleIcon: '🎛️',
@@ -356,6 +374,13 @@ export const APP_TEXTS = {
     successToast: 'Metadatos generados con éxito',
     errorToastPrefix: 'Error al generar metadatos: ',
   },
+  sorting: {
+    label: 'Ordenar por:',
+    options: {
+      newest: 'Más recientes primero',
+      oldest: 'Más antiguos primero',
+      nameAsc: 'Nombre (A-Z)',
+      nameDesc: 'Nombre (Z-A)',
+    },
+  },
 } as const;
-  
-

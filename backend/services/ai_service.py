@@ -19,6 +19,9 @@ def analyze_document_metadata(raw_text: str) -> dict:
         }
 
     api_key = os.getenv("GEMINI_API_KEY")
+    # Parametrización del modelo con valor por defecto
+    model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
     if not api_key:
         print("⚠️ GEMINI_API_KEY no encontrada en las variables de entorno.")
         return {
@@ -43,9 +46,9 @@ def analyze_document_metadata(raw_text: str) -> dict:
     """
 
     try:
-        # ⚡ 1. Cambiado a 'gemini-1.5-flash' (o 'gemini-2.0-flash')
+        # Uso de la variable model_name parametrizada
         response = client.models.generate_content(
-            model='gemini-2.5-flash', 
+            model=model_name, 
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -54,14 +57,12 @@ def analyze_document_metadata(raw_text: str) -> dict:
             ),
         )
 
-        # ⚡ 2. Si usas Pydantic Structured Output, 'parsed' devuelve el objeto formateado
         if hasattr(response, 'parsed') and response.parsed:
             return response.parsed.model_dump()
             
         return json.loads(response.text)
 
     except Exception as e:
-        # Imprime el error detallado en la consola del backend de FastAPI
         print(f"❌ Error REAL al consultar Gemini: {type(e).__name__} - {e}")
         return {
             "title": "Documento procesado",
