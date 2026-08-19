@@ -105,6 +105,13 @@ export const documentService = {
     });
   },
 
+  // Reparar PDF
+  normalizeManual: async (documentId: string): Promise<void> => {
+    return fetchApi<void>(`/documents/${documentId}/normalize-manual`, {
+      method: 'POST',
+    });
+  },
+
   // Sincronizar directorio o colección externa
   syncCollection: async (pathOrId: string): Promise<{ added: number; removed: number }> => {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pathOrId);

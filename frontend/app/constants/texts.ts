@@ -31,6 +31,10 @@ export const APP_TEXTS = {
         page: 'Página {currentPage} de {totalPages}',
         goToPage: 'Ir a página',
     },
+    normalize: {
+      successTitle: 'Normalización completada',
+      successMessage: 'PDF reparado exitosamente. El documento ya está listo y optimizado.',
+    },
   },
   sidebar: {
     collectionsTitle: 'Colecciones',
@@ -190,6 +194,10 @@ export const APP_TEXTS = {
     loadPdfErrorText: 'No se pudo cargar el archivo PDF.',
     loadPdfErrorLog: 'Error al cargar el PDF:',
     renderErrorLog: 'Error al renderizar página:',
+    repairBtn: '🛠️ Reparar PDF',
+    repairingBtn: 'Reparando...',
+    repairSuccess: 'PDF reparado exitosamente',
+    repairError: 'Hubo un error al intentar reparar el PDF',
   },
   facetedFilters: {
     titleIcon: '🎛️',
@@ -367,5 +375,6 @@ export const APP_TEXTS = {
     errorToastPrefix: 'Error al generar metadatos: ',
   },
 } as const;
+  
   
 
