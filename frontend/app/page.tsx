@@ -137,7 +137,15 @@ export default function Home() {
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
   const [modalParentId, setModalParentId] = useState<string | undefined>(undefined);
+  const [totalGlobalCount, setTotalGlobalCount] = useState<number>(0);
   const [totalGlobalDocuments, setTotalGlobalDocuments] = useState<number>(0);
+
+  // Cargar el total global al montar
+  useEffect(() => {
+    documentService.getAll(1, 1).then(res => {
+      setTotalGlobalCount(res.total);
+    }).catch(console.error);
+  }, []);
 
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -801,6 +809,7 @@ export default function Home() {
     <div className="flex min-h-screen bg-[var(--app-bg)] text-[color:var(--text-primary)] font-sans transition-colors duration-200">
       <Sidebar
         totalGlobalDocuments={totalGlobalDocuments}
+        totalGlobalCount={totalGlobalCount}
         selectedCollectionId={selectedCollectionId}
         setSelectedCollectionId={setSelectedCollectionId}
         collections={collections}

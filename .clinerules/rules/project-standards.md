@@ -21,3 +21,6 @@
 - If a file path is needed, ask the user or look directly into known directories.
 - Go straight to reading or editing the specified files without exploratory terminal commands.
 - Minimize tool-use steps and be token-efficient.
+
+- NEVER use terminal commands (like dir, ls, find, or grep) to search for files or check paths.
+- ALWAYS use the native file viewing/reading tool directly with the provided file path. Do not exploratory-search.

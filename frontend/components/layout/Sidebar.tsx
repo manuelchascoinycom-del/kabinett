@@ -13,6 +13,7 @@ type ThemeMode = 'light' | 'dark' | 'system';
 
 interface SidebarProps {
   totalGlobalDocuments: number;
+  totalGlobalCount: number;
   selectedCollectionId: string | null;
   setSelectedCollectionId: (id: string | null) => void;
   collections: Collection[];
@@ -26,6 +27,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({
   totalGlobalDocuments,
+  totalGlobalCount,
   selectedCollectionId,
   setSelectedCollectionId,
   collections,
@@ -141,7 +143,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <span className="truncate pr-2">{APP_TEXTS.sidebar.allDocumentsIcon} {APP_TEXTS.common.allDocuments}</span>
           <span className="shrink-0 text-[10px] bg-[var(--panel-bg)] border border-[color:var(--border-color)] px-2 py-0.5 rounded-full text-[color:var(--text-muted)]">
-            {totalGlobalDocuments}
+            {totalGlobalCount}
           </span>
         </button>
       </div>
