@@ -3,13 +3,16 @@ import fitz  # PyMuPDF
 import pytesseract
 from pdf2image import convert_from_path
 
-# Configura la ruta de Tesseract en Windows si no está en el PATH del sistema
+# 1. Configuración dinámica de Tesseract
 TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 if os.path.exists(TESSERACT_CMD):
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+# Si no existe (estamos en Docker/Linux), pytesseract usará automáticamente 'tesseract' del PATH del sistema.
 
-# Ruta exacta a la carpeta bin de Poppler en tu equipo
-POPPLER_PATH = r"C:\poppler-26.02.0\Library\bin"
+# 2. Configuración dinámica de Poppler
+WIN_POPPLER_PATH = r"C:\poppler-26.02.0\Library\bin"
+# Si la ruta de Windows existe la usa, de lo contrario (Docker) será None para que use el PATH de Linux
+POPPLER_PATH = WIN_POPPLER_PATH if os.path.exists(WIN_POPPLER_PATH) else None
 
 
 def extract_text_from_first_pages(pdf_path: str, max_pages: int = 3) -> str:
