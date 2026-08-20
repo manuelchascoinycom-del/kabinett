@@ -265,6 +265,7 @@ export default function Home() {
       const docsArray = response?.data || [];
       const totalCount = response?.total || docsArray.length;
       setTotalGlobalDocuments(totalCount);
+      setTotalGlobalCount(totalCount);
 
       const loadedItems: UploadItem[] = docsArray.map((doc: BackendDocument) => ({
         id: doc.id,
@@ -464,6 +465,7 @@ export default function Home() {
       setUploadQueueItems((prev) =>
         prev.map((item) => (item.id === fileItem.id ? uploadedItem : item))
       );
+      fetchDocuments();
     } catch (err: any) {
       setUploadQueueItems((prev) =>
         prev.map((item) =>
@@ -666,6 +668,7 @@ export default function Home() {
     try {
       await documentService.deleteDocument(documentId);
       setDocuments((prevDocs) => prevDocs.filter((doc) => (doc.backendId || doc.id) !== documentId));
+      fetchDocuments();
     } catch (error) {
       console.error('Error al eliminar el documento:', error);
     }

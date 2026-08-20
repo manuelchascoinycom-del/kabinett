@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - Restored efficient PDF streaming for large documents by transitioning from full blob downloads to authenticated range requests
 - Resolved a critical OCR extraction error ("Unable to get page count") by adding `poppler-utils` as a system dependency in the backend container.
 - Resolved a browser caching issue that prevented newly normalized documents from displaying immediately by appending a timestamp query parameter to PDF view requests.
+- **UI/Sidebar**: Fixed the synchronization of the "All documents" counter. The total file count now updates in real-time when uploading, importing, or deleting documents, eliminating the need to manually refresh the page.
 
 ### Changed
 - Refactored Docker setup: both frontend and backend services now build locally using their respective Dockerfiles to ensure full control over system dependencies.
