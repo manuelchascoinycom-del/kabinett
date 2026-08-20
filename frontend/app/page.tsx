@@ -514,6 +514,7 @@ export default function Home() {
         tags: editForm.tags,
         custom_metadata: editForm.custom,
       };
+      console.log('Enviando payload:', payload);
 
       await documentService.confirmMetadata(editingItem.backendId, payload);
 

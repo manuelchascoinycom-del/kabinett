@@ -85,7 +85,10 @@ export const EditMetadataModal: React.FC<EditMetadataModalProps> = ({
             <TagInput
               tags={editForm.tags}
               allTags={globalTags}
-              onChange={(newTags) => setEditForm({ ...editForm, tags: newTags })}
+              onChange={(newTags) => {
+                console.log('Nuevas etiquetas:', newTags);
+                setEditForm({ ...editForm, tags: newTags });
+              }}
             />
           </div>
 
