@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.2.0] - 2026-08-20
 ### Added
 - Support for Gemini AI integration, including environment variable configurations for the model and API key.
 - Optimized the manual PDF normalization process: improved text sharpness by switching to 150 DPI and 85% JPEG quality, while enabling internal image compression (`deflate_images=True`).
