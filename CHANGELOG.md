@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2026-08-20
+### Fixed
+- Resolved a critical OCR extraction crash (`FileNotFoundError`) inside the backend Docker container by making Poppler and Tesseract paths dynamic (environment-aware).
+- Added `t
+
 ## [1.2.0] - 2026-08-20
 ### Added
 - Support for Gemini AI integration, including environment variable configurations for the model and API key.
