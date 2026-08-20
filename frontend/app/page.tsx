@@ -587,7 +587,7 @@ export default function Home() {
     try {
       const payload = {
         name: newFieldName,
-        type: newFieldType,
+        field_type: newFieldType,
         options: newFieldType === 'select' ? newFieldOptions.split(',').map((s) => s.trim()) : [],
       };
 

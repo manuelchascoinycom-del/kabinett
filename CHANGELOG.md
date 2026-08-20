@@ -3,6 +3,9 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+### Fixed
+- Restored tag creation functionality and payload formatting in `EditMetadataModal`.
+- Fixed 422 Unprocessable Entity error when creating custom fields by mapping `type` to `field_type`.
 
 ## [1.1.0] - 2026-08-19
 ### Added
