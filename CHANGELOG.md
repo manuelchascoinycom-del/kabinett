@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 ### Added
 - Support for Gemini AI integration, including environment variable configurations for the model and API key.
+- Optimized the manual PDF normalization process: improved text sharpness by switching to 150 DPI and 85% JPEG quality, while enabling internal image compression (`deflate_images=True`).
 
 ### Fixed
 - Restored tag creation functionality and payload formatting in `EditMetadataModal`.
@@ -13,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - Fixed backend document filtering endpoint ignoring `sort_by` and `order` parameters, restoring proper list sorting.
 - Restored efficient PDF streaming for large documents by transitioning from full blob downloads to authenticated range requests
 - Resolved a critical OCR extraction error ("Unable to get page count") by adding `poppler-utils` as a system dependency in the backend container.
+- Resolved a browser caching issue that prevented newly normalized documents from displaying immediately by appending a timestamp query parameter to PDF view requests.
 
 ### Changed
 - Refactored Docker setup: both frontend and backend services now build locally using their respective Dockerfiles to ensure full control over system dependencies.

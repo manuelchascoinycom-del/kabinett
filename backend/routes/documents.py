@@ -397,7 +397,7 @@ def get_document_file(
         filename=doc.filename,
         headers={
             "Accept-Ranges": "bytes",
-            "Cache-Control": "public, max-age=3600",
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
         }
     )
 
