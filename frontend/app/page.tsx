@@ -17,6 +17,7 @@ import { Dropzone } from '@/components/upload/Dropzone';
 import { ConfirmModal } from '@/components/modals/ConfirmModal';
 import { HasRole } from '@/components/auth/HasRole';
 import { IngestProgressModal } from '@/components/modals/IngestProgressModal';
+import { VersionFooter } from "@/components/layout/VersionFooter/VersionFooter";
 
 import { collectionService } from '@/services/collectionService';
 import { documentService, BackendDocument } from '@/services/documentService';
@@ -849,14 +850,15 @@ export default function Home() {
         </div>
       </div>
 
-      <main className="flex-1 p-8 overflow-y-auto">
-        {/* Botón para alternar filtros */}
-        <button
-          onClick={() => setIsFiltersVisible(!isFiltersVisible)}
-          className="mb-2 text-xs font-semibold text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors"
-        >
-          {isFiltersVisible ? '« Ocultar filtros' : '» Mostrar filtros'}
-        </button>
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <main className="flex-1 overflow-y-auto p-8">
+          {/* Botón para alternar filtros */}
+          <button
+            onClick={() => setIsFiltersVisible(!isFiltersVisible)}
+            className="mb-2 text-xs font-semibold text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors"
+          >
+            {isFiltersVisible ? '« Ocultar filtros' : '» Mostrar filtros'}
+          </button>
         
         <div className="w-full">
           <div className="flex items-center gap-4 mb-4">
@@ -1057,6 +1059,8 @@ export default function Home() {
           </div>
         </div>
       </main>
+      <VersionFooter />
+    </div>
 
       {/* Toast flotante global de notificación[cite: 1] */}
       {toastMessage && (
