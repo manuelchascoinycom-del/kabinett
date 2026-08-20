@@ -9,7 +9,6 @@ export interface CustomFieldItem {
   id: string;
   name: string;
   field_type?: 'text' | 'number' | 'select' | 'boolean' | string;
-  type?: string;
   options?: string[];
 }
 
@@ -61,7 +60,7 @@ export const CustomFieldsModal: React.FC<CustomFieldsModalProps> = ({
             </label>
             <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
               {customFields.map((field) => {
-                const type = field.field_type || field.type;
+                const type = field.field_type;
                 return (
                   <div
                     key={field.id}

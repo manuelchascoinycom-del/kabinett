@@ -11,7 +11,7 @@ export interface CustomField {
 
 export interface CreateCustomFieldPayload {
   name: string;
-  type: string;
+  field_type: string;
   options?: string[];
   [key: string]: any;
 }

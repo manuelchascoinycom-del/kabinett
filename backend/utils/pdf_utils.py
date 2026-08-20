@@ -33,7 +33,7 @@ from PIL import Image
 def force_normalize_pdf(file_path: str) -> bool:
     """
     Fuerza la normalización y reconstrucción de un PDF bajo demanda.
-    Convierte las páginas a escala de grises (110 DPI, JPEG calidad 80) 
+    Convierte las páginas a escala de grises (150 DPI, JPEG calidad 85) 
     y aplica limpieza profunda (garbage=4).
     """
     try:
@@ -41,7 +41,7 @@ def force_normalize_pdf(file_path: str) -> bool:
         new_doc = fitz.open()
         
         for page in doc_fitz:
-            pix = page.get_pixmap(dpi=110)
+            pix = page.get_pixmap(dpi=150)
             img_bytes = pix.tobytes("png")
             
             img = Image.open(io.BytesIO(img_bytes))
@@ -49,7 +49,7 @@ def force_normalize_pdf(file_path: str) -> bool:
                 img = img.convert("L")
                 
             buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=80, optimize=True)
+            img.save(buffer, format="JPEG", quality=85, optimize=True)
             compressed_jpeg = buffer.getvalue()
             
             new_page = new_doc.new_page(width=page.rect.width, height=page.rect.height)
