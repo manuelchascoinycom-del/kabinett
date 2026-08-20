@@ -11,6 +11,8 @@ if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 interface PDFViewerProps {
   documentId: string;
   title: string;
@@ -18,6 +20,7 @@ interface PDFViewerProps {
 }
 
 export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps) {
+  // const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [pageNum, setPageNum] = useState<number>(1);
   const [numPages, setNumPages] = useState<number>(0);
@@ -44,18 +47,18 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
 
     const loadProtectedPdf = async () => {
       try {
-        // 1. Descargamos el blob usando el servicio autenticado
-        const blob = await documentService.downloadPdf(documentId);
-        if (!isMounted) return;
-
-        // 2. Convertimos el blob en un ArrayBuffer para pdfjs-dist
-        const arrayBuffer = await blob.arrayBuffer();
+        const token = localStorage.getItem('token');
+        const fileUrl = `${API_BASE_URL}/documents/${documentId}/file`;
 
         const loadingTask = pdfjsLib.getDocument({
-          data: arrayBuffer, // 👈 Pasamos los datos binarios en lugar de la URL
+          url: fileUrl,
+          httpHeaders: token ? { Authorization: `Bearer ${token}` } : undefined,
+          rangeChunkSize: 64 * 1024,
+          disableRange: false,
+          disableStream: false,
+          verbosity: 0,
           useSystemFonts: true,
           enableXfa: false,
-          verbosity: 0,
         });
 
         loadingTaskRef.current = loadingTask;
@@ -65,6 +68,7 @@ export default function PDFViewer({ documentId, title, onClose }: PDFViewerProps
 
         setPdfDoc(pdf);
         setNumPages(pdf.numPages);
+        setLoading(false);
       } catch (err: any) {
         if (!isMounted) return;
         if (err?.name !== 'AbortException') {

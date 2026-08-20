@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - Fixed 422 Unprocessable Entity error when creating custom fields by mapping `type` to `field_type`.
 - Resolved layout overlap between the version footer and the scrollable content list by transitioning to a flexible structural layout.
 - Fixed backend document filtering endpoint ignoring `sort_by` and `order` parameters, restoring proper list sorting.
+- Restored efficient PDF streaming for large documents by transitioning from full blob downloads to authenticated range requests
 
 ## [1.1.0] - 2026-08-19
 ### Added
