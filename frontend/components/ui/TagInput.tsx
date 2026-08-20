@@ -52,6 +52,13 @@ export function TagInput({ tags = [], allTags = [], onChange }: TagInputProps) {
     onChange(currentTags.filter((t) => t !== tagToRemove));
   };
 
+  const handleBlur = () => {
+    if (inputValue.trim()) {
+      addTag(inputValue);
+    }
+    setTimeout(() => setShowSuggestions(false), 200);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
@@ -83,7 +90,7 @@ export function TagInput({ tags = [], allTags = [], onChange }: TagInputProps) {
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          onBlur={handleBlur}
           placeholder={
             currentTags.length === 0
               ? T.placeholderEmpty

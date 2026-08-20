@@ -4,7 +4,7 @@ export const VersionFooter = () => {
   const version = process.env.NEXT_PUBLIC_APP_VERSION || 'dev';
 
   return (
-    <footer className="fixed bottom-2 right-4 text-[10px] text-[var(--text-secondary)] opacity-50 pointer-events-none select-none">
+    <footer className="w-full flex justify-end text-[10px] text-[color:var(--text-secondary)] opacity-50 select-none px-8 py-2">
       {version}
     </footer>
   );

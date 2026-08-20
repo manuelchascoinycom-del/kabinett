@@ -58,7 +58,6 @@ export default function RootLayout({
           {children}
           {/* Widget flotante de simulación de rol solo para desarrollo */}
           {process.env.NODE_ENV === 'development' && <DevRoleSwitcher />}
-          <VersionFooter />
 
         </Providers>
       </body>
