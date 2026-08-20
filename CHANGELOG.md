@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Restored tag creation functionality and payload formatting in `EditMetadataModal`.
 - Fixed 422 Unprocessable Entity error when creating custom fields by mapping `type` to `field_type`.
+- Resolved layout overlap between the version footer and the scrollable content list by transitioning to a flexible structural layout.
+- Fixed backend document filtering endpoint ignoring `sort_by` and `order` parameters, restoring proper list sorting.
 
 ## [1.1.0] - 2026-08-19
 ### Added

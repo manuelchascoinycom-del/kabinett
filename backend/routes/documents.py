@@ -37,6 +37,9 @@ class FilterPayloadSchema(BaseModel):
     custom_fields: Optional[Dict[str, str]] = None  # <-- Añadido aquí
     page: int = 1
     limit: int = 20
+    sort_by: Optional[str] = "created_at"
+    order: Optional[str] = "desc"
+
 
 
 def process_pdf_in_background(document_id: str, file_path: str):
@@ -270,6 +273,13 @@ def filter_documents(
             if expected_val is not None and str(expected_val).strip() != "":
                 # Comparamos dentro del campo JSONB custom_metadata de PostgreSQL
                 query = query.filter(models.Document.custom_metadata[field_key].as_string() == str(expected_val))
+
+    # 5.5. Ordenación
+    sort_field = getattr(models.Document, payload.sort_by, models.Document.created_at)
+    if payload.order == "desc":
+        query = query.order_by(sort_field.desc())
+    else:
+        query = query.order_by(sort_field.asc())
 
     # Obtener el total exacto de resultados antes de paginar
     total_results = query.count()
