@@ -3,12 +3,19 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+### Added
+- Support for Gemini AI integration, including environment variable configurations for the model and API key.
+
 ### Fixed
 - Restored tag creation functionality and payload formatting in `EditMetadataModal`.
 - Fixed 422 Unprocessable Entity error when creating custom fields by mapping `type` to `field_type`.
 - Resolved layout overlap between the version footer and the scrollable content list by transitioning to a flexible structural layout.
 - Fixed backend document filtering endpoint ignoring `sort_by` and `order` parameters, restoring proper list sorting.
 - Restored efficient PDF streaming for large documents by transitioning from full blob downloads to authenticated range requests
+- Resolved a critical OCR extraction error ("Unable to get page count") by adding `poppler-utils` as a system dependency in the backend container.
+
+### Changed
+- Refactored Docker setup: both frontend and backend services now build locally using their respective Dockerfiles to ensure full control over system dependencies.
 
 ## [1.1.0] - 2026-08-19
 ### Added

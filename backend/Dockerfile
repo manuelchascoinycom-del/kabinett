@@ -7,6 +7,7 @@ WORKDIR /app
 # 3. Instalar dependencias del sistema necesarias
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. Copiar e instalar dependencias de Python
