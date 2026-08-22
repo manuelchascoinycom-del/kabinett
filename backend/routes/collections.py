@@ -1,9 +1,14 @@
+import os
+from pathlib import Path
+
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
 import models
+from schemas.collection_update import CollectionUpdate
+
 from schemas.collection import CollectionCreate, CollectionResponse, AssignDocumentSchema, CollectionNode
 from dependencies import require_roles  # <--- Importación actualizada
 
@@ -41,6 +46,79 @@ def create_collection(
         created_at=new_collection.created_at,
         document_count=0
     )
+
+@router.put("/{collection_id}", response_model=CollectionResponse)
+def update_collection(
+    collection_id: uuid.UUID,
+    payload: CollectionUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))
+):
+    collection = db.query(models.Collection).filter(models.Collection.id == collection_id).first()
+    if not collection:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colección no encontrada")
+
+    # Validar si el nuevo nombre es válido
+    if not payload.name or payload.name.strip() == "":
+        raise HTTPException(status_code=400, detail="El nombre de la colección no puede estar vacío")
+
+    # 1. Comprobar si tiene una descripción que incluya la ruta física
+    if collection.description and "Colección creada automáticamente para la ruta: " in collection.description:
+        old_path_str = collection.description.replace("Colección creada automáticamente para la ruta: ", "").strip()
+        old_path = Path(old_path_str)
+        
+        if old_path.exists():
+            new_path = old_path.parent / payload.name
+            
+            # Renombrar físicamente
+            try:
+                os.rename(old_path, new_path)
+                
+                # Actualizar la descripción en el modelo para reflejar la nueva ruta
+                collection.description = f"Colección creada automáticamente para la ruta: {new_path}"
+                
+            except OSError as e:
+                raise HTTPException(status_code=500, detail=f"Error al renombrar el directorio físico: {str(e)}")
+    # Validar si el nuevo nombre es válido
+    if not payload.name or payload.name.strip() == "":
+        raise HTTPException(status_code=400, detail="El nombre de la colección no puede estar vacío")
+
+    # 1. Comprobar si tiene una descripción que incluya la ruta física
+    if collection.description and "Colección creada automáticamente para la ruta: " in collection.description:
+        old_path_str = collection.description.replace("Colección creada automáticamente para la ruta: ", "").strip()
+        old_path = Path(old_path_str)
+        
+        if old_path.exists():
+            new_path = old_path.parent / payload.name
+            
+            # Renombrar físicamente
+            try:
+                os.rename(old_path, new_path)
+                
+                # Actualizar la descripción en el modelo para reflejar la nueva ruta
+                collection.description = f"Colección creada automáticamente para la ruta: {new_path}"
+                
+            except OSError as e:
+                raise HTTPException(status_code=500, detail=f"Error al renombrar el directorio físico: {str(e)}")
+
+    
+    collection.name = payload.name
+    db.commit()
+    db.refresh(collection)
+    
+    doc_count = db.query(func.count(models.document_collections.c.document_id))\
+        .filter(models.document_collections.c.collection_id == collection.id).scalar()
+
+    return CollectionResponse(
+        id=collection.id,
+        name=collection.name,
+        description=collection.description,
+        parent_id=collection.parent_id,
+        created_at=collection.created_at,
+        document_count=doc_count
+    )
+
+
 
 @router.get("", response_model=list[CollectionNode] | list[CollectionResponse])
 def list_collections(

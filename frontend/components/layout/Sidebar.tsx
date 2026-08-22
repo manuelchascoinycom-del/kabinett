@@ -23,6 +23,8 @@ interface SidebarProps {
   onOpenNewCollectionModal: (parentId?: string) => void; 
   onOpenConfigModal: () => void;
   onDeleteCollection?: (id: string) => void;
+  onRefreshCollections?: () => void;
+
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -34,6 +36,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   themeMode,
   onThemeModeChange,
   onOpenNewCollectionModal,
+  onRefreshCollections,
+
   onOpenConfigModal,
   onDeleteCollection,
 }) => {
@@ -175,6 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onSelect={setSelectedCollectionId}
               onDelete={onDeleteCollection}
               onAddSubcollection={(parentId) => onOpenNewCollectionModal(parentId)}
+              onUpdate={onRefreshCollections}
             />
           ))}
         </div>

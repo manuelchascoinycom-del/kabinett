@@ -44,4 +44,12 @@ export const collectionService = {
       method: 'DELETE',
     });
   },
+  update: async (collectionId: string, name: string): Promise<Collection> => {
+    return fetchApi<Collection>(`/collections/${collectionId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    });
+  },
+
+
 };

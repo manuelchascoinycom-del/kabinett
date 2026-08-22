@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { APP_TEXTS } from '@/app/constants/texts';
 import { HasRole } from '@/components/auth/HasRole';
-import { Collection as BaseCollection } from '@/services/collectionService';
+import { Collection as BaseCollection, collectionService } from '@/services/collectionService';
 
 export interface Collection extends BaseCollection {
   // Aseguramos que los campos necesarios existen
@@ -44,6 +44,7 @@ interface CollectionTreeItemProps {
   onSelect: (id: string) => void;
   onDelete?: (id: string) => void;
   onAddSubcollection?: (parentId: string) => void;
+  onUpdate?: () => void; // Añadido
   depth?: number;
 }
 
@@ -53,8 +54,52 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
   onSelect,
   onDelete,
   onAddSubcollection,
+  onUpdate,
   depth = 0,
 }) => {
+  // Sincronizar el nombre si la prop cambia (ej. al refrescar datos)
+  React.useEffect(() => {
+    setEditedName(collection.name);
+  }, [collection.name]);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState(collection.name);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleRename = async (e?: React.SyntheticEvent) => {
+    if (e) e.preventDefault();
+
+    if (editedName.trim() === collection.name) {
+      setIsEditing(false);
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      await collectionService.update(collection.id, editedName.trim());
+    // 3. Opcional: Actualización optimista del estado local
+    // Como la estructura de datos es jerárquica, una forma sencilla de refrescar 
+    // sin recargar toda la página es llamar a una función proporcionada por el padre
+    // que vuelva a solicitar las colecciones.
+    // Ya lo estamos haciendo mediante 'onUpdate()' que llama a 'fetchCollections()'.
+    
+    // Cerramos el modo edición inmediatamente para mostrar el nuevo nombre
+    setIsEditing(false);
+
+    // Notificar al padre para que refresque la lista sin recargar la página
+    if (onUpdate) {
+      onUpdate();
+    }
+    } catch (error) {
+      console.error('Error al renombrar:', error);
+      alert('No se pudo renombrar la colección.');
+      setEditedName(collection.name); // Revertir en caso de error
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+
   const [isOpen, setIsOpen] = useState(false);
   const isSelected = selectedCollectionId === collection.id;
   const hasChildren = collection.children && collection.children.length > 0;
@@ -89,43 +134,77 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
           ) : (
             <span className="w-4" />
           )}
-          <span className="truncate" title={collection.name}>
-            {APP_TEXTS.sidebar.collectionIcon} {collection.name}
-          </span>
+          {isEditing ? (
+            <input
+              type="text"
+              value={editedName}
+              onChange={(e) => setEditedName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRename();
+                if (e.key === 'Escape') setIsEditing(false);
+              }}
+              onBlur={handleRename}
+              autoFocus
+              className="w-full bg-[var(--panel-bg)] text-[color:var(--text-primary)] border border-emerald-500 rounded px-1 outline-none text-xs"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span className="truncate" title={collection.name}>
+              {APP_TEXTS.sidebar.collectionIcon} {collection.name}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {onAddSubcollection && (
-            <HasRole canEdit>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsOpen(true);
-                  onAddSubcollection(collection.id);
-                }}
-                className="hidden group-hover:flex text-[color:var(--text-subtle)] hover:text-emerald-500 p-0.5 transition-all text-lg leading-none items-center justify-center"
-                title="Añadir subcolección"
-              >
-                +
-              </button>
-            </HasRole>
-          )}
+          {!isEditing && (
+            <>
+              {onAddSubcollection && (
+                <HasRole canEdit>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsOpen(true);
+                      onAddSubcollection(collection.id);
+                    }}
+                    className="hidden group-hover:flex text-[color:var(--text-subtle)] hover:text-emerald-500 p-0.5 transition-all text-lg leading-none items-center justify-center"
+                    title="Añadir subcolección"
+                  >
+                    +
+                  </button>
+                </HasRole>
+              )}
 
-          {onDelete && (
-            <HasRole canDelete>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(collection.id);
-                }}
-                className="hidden group-hover:flex text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] p-0.5 transition-all text-xs items-center justify-center"
-                title={APP_TEXTS.sidebar.deleteCollectionTooltip}
-              >
-                {APP_TEXTS.sidebar.deleteIcon}
-              </button>
-            </HasRole>
+              <HasRole canEdit>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsEditing(true);
+                  }}
+                  className="hidden group-hover:flex text-[color:var(--text-subtle)] hover:text-emerald-500 p-0.5 transition-all text-xs items-center justify-center"
+                  title="Renombrar colección"
+                >
+                  ✎
+                </button>
+              </HasRole>
+
+              {onDelete && (
+                <HasRole canDelete>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(collection.id);
+                    }}
+                    className="hidden group-hover:flex text-[color:var(--text-subtle)] hover:text-[color:var(--danger)] p-0.5 transition-all text-xs items-center justify-center"
+                    title={APP_TEXTS.sidebar.deleteCollectionTooltip}
+                  >
+                    {APP_TEXTS.sidebar.deleteIcon}
+                  </button>
+                </HasRole>
+              )}
+            </>
           )}
 
           <span className="text-[10px] bg-[var(--panel-bg)] border border-[color:var(--border-color)] text-[color:var(--text-muted)] px-2 py-0.5 rounded-full">
@@ -144,6 +223,7 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
               onSelect={onSelect}
               onDelete={onDelete}
               onAddSubcollection={onAddSubcollection}
+              onUpdate={onUpdate}
               depth={depth + 1}
             />
           ))}
