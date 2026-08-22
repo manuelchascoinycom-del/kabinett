@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **Collection Renaming:** Added the ability to rename collections directly from the sidebar. Changes are now synchronized both in the database and physically on the file system for directory-backed collections.
 - **Improved UI Experience:** Implemented seamless inline editing for collections and subcollections with real-time state updates, eliminating the need for full-page reloads.
+- **Drag-and-Drop Organization**: Users can now drag document cards and drop them directly onto any root collection or nested subcollection in the sidebar to quickly reassign them.
 
 ## [1.2.1] - 2026-08-20
 ### Fixed

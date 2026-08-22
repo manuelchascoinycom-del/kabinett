@@ -9,7 +9,15 @@ from database import get_db
 import models
 from schemas.collection_update import CollectionUpdate
 
-from schemas.collection import CollectionCreate, CollectionResponse, AssignDocumentSchema, CollectionNode
+import shutil
+
+from schemas.collection import (
+    CollectionCreate,
+    CollectionResponse,
+    AssignDocumentSchema,
+    CollectionNode,
+    MoveDocumentSchema,
+)
 from dependencies import require_roles  # <--- Importación actualizada
 
 router = APIRouter(prefix="/collections", tags=["Collections"])
@@ -204,13 +212,77 @@ def remove_document_from_collection(
 
     document = db.query(models.Document).filter(models.Document.id == document_id).first()
     if not document:
-        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+                raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     if document in collection.documents:
         collection.documents.remove(document)
         db.commit()
 
     return {"message": "Documento eliminado de la colección (permanece en la biblioteca raíz)"}
+
+@router.put("/{document_id}/move", status_code=status.HTTP_200_OK)
+def move_document(
+    document_id: uuid.UUID,
+    payload: MoveDocumentSchema,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))
+):
+    """
+    Mueve un documento de su colección actual a una colección de destino.
+    Si ambas tienen ruta física, mueve el archivo en disco.
+    """
+    # 1. Obtener documento y colección de destino
+    doc = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    target_coll = db.query(models.Collection).filter(models.Collection.id == payload.target_collection_id).first()
+    if not target_coll:
+        raise HTTPException(status_code=404, detail="Colección de destino no encontrada")
+
+    # 2. Identificar la colección actual (asumimos que solo tiene una por ahora)
+    if not doc.collections:
+        raise HTTPException(status_code=400, detail="El documento no tiene una colección asociada")
+    
+    source_coll = doc.collections[0]
+    
+    # 3. Comprobación física
+    # Buscamos rutas en la descripción como convención actual del proyecto
+    source_path_str = None
+    if source_coll.description and "Colección creada automáticamente para la ruta: " in source_coll.description:
+        source_path_str = source_coll.description.replace("Colección creada automáticamente para la ruta: ", "").strip()
+    
+    target_path_str = None
+    if target_coll.description and "Colección creada automáticamente para la ruta: " in target_coll.description:
+        target_path_str = target_coll.description.replace("Colección creada automáticamente para la ruta: ", "").strip()
+
+    if source_path_str and target_path_str:
+        if not doc.absolute_path or not os.path.exists(doc.absolute_path):
+             raise HTTPException(status_code=404, detail="Archivo físico original no encontrado")
+        
+        new_file_path = os.path.join(target_path_str, doc.filename)
+        
+        # Crear directorio si no existe
+        os.makedirs(target_path_str, exist_ok=True)
+        
+        # Mover archivo
+        try:
+            shutil.move(doc.absolute_path, new_file_path)
+            doc.absolute_path = new_file_path
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error al mover archivo físico: {str(e)}")
+
+    # 4. Actualizar relación en BD
+    try:
+        doc.collections.remove(source_coll)
+        doc.collections.append(target_coll)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al actualizar la base de datos: {str(e)}")
+
+    return {"message": "Documento movido exitosamente"}
 
 @router.get("/{collection_id}/documents")
 def get_documents_by_collection(

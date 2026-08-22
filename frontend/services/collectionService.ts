@@ -50,6 +50,12 @@ export const collectionService = {
       body: JSON.stringify({ name }),
     });
   },
-
-
+  moveDocument: async (documentId: string, targetCollectionId: string): Promise<void> => {
+    return fetchApi<void>(`/collections/${documentId}/move`, {
+      method: 'PUT',
+      body: JSON.stringify({ target_collection_id: targetCollectionId }),
+    });
+  },
 };
+
+  

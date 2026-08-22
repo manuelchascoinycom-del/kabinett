@@ -671,6 +671,23 @@ export default function Home() {
     }
   };
 
+  const handleMoveDocument = async (documentId: string, targetCollectionId: string) => {
+    try {
+      await collectionService.moveDocument(documentId, targetCollectionId);
+      // Actualizar estado local: si estamos en una vista de colección, eliminar el documento,
+      // sino simplemente refrescar.
+      if (selectedCollectionId) {
+        setDocuments((prevDocs) => prevDocs.filter((doc) => doc.backendId !== documentId));
+      }
+      fetchCollections();
+      fetchDocuments();
+    } catch (e) {
+      console.error('Error al mover documento:', e);
+      alert('Error al mover el documento');
+    }
+  };
+
+
   const handleDeleteDocument = async (documentId: string) => {
     try {
       await documentService.deleteDocument(documentId);
@@ -839,7 +856,9 @@ export default function Home() {
         }}
         onOpenConfigModal={() => setShowConfigModal(true)}
         onDeleteCollection={handleDeleteCollectionClick}
+        onMoveDocument={handleMoveDocument}
         onRefreshCollections={fetchCollections}
+
       />
 
       <div className={`transition-all duration-300 ease-in-out ${isFiltersVisible ? 'w-64' : 'w-0'} overflow-hidden relative border-r border-[color:var(--border-color)]`}>
@@ -1010,6 +1029,8 @@ export default function Home() {
 
                 onGenerateMetadata={handleGenerateMetadata}
                 isGenerating={!!generatingMetadataIds[doc.backendId!]}
+                onMoveCollection={handleMoveDocument}
+
 
               />
             ))}
