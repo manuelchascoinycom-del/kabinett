@@ -95,6 +95,7 @@ const getCollectionPath = (id: string, cols: Collection[]): string[] => {
 };
 
 export default function Home() {
+  const [filterRefreshKey, setFilterRefreshKey] = useState(0);
   const { userRole } = useAuth();
 
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -525,6 +526,7 @@ export default function Home() {
       fetchDocuments();
       fetchGlobalTags();
       applyFilters();
+      setFilterRefreshKey((prev) => prev + 1);
     } catch (e) {
       console.error('Error al confirmar metadatos:', e);
     }
@@ -535,7 +537,12 @@ export default function Home() {
     try {
       await documentService.generateMetadata(backendId);
       setToastMessage(APP_TEXTS.aiMetadata.successToast);
+      
+      // Actualizamos los datos globales para que los facets se recalculen
+      await fetchDocuments();
       await applyFilters();
+      
+      setFilterRefreshKey((prev) => prev + 1);
       setTimeout(() => setToastMessage(null), 3000);
     } catch (e: any) {
       console.error('Error al generar metadatos:', e);
@@ -849,6 +856,7 @@ export default function Home() {
               setSelectedCustomFilters({ ...selectedCustomFilters, [fieldName]: value })
             }
             onClearAllFilters={clearAllFilters}
+            refreshTrigger={filterRefreshKey}
           />
         </div>
       </div>

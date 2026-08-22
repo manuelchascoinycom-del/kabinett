@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.2] - 2026-08-22
+### Fixed
+- Fixed faceted filters state synchronization: options now automatically refresh and update in real-time after generating metadata via AI, eliminating the need to manually reload the page.
+
 ## [1.2.1] - 2026-08-20
 ### Fixed
 - Resolved a critical OCR extraction crash (`FileNotFoundError`) inside the backend Docker container by making Poppler and Tesseract paths dynamic (environment-aware).
