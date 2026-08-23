@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.2.2] - 2026-08-22
+## [1.2.2] - 2026-08-23
 ### Fixed
 - Fixed faceted filters state synchronization: options now automatically refresh and update in real-time after generating metadata via AI, eliminating the need to manually reload the page.
 
