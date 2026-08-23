@@ -111,7 +111,7 @@ export default function Home() {
   const [isIngesting, setIsIngesting] = useState(false);
 
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage] = useState<number>(20);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(20);
 
   const [uploadQueueItems, setUploadQueueItems] = useState<UploadItem[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
@@ -206,7 +206,7 @@ export default function Home() {
     setToastMessage(APP_TEXTS.ingestModal.status.completed);
     setShowIngestModal(false);
     setCurrentTaskId(null);
-    fetchDocuments();
+    fetchDocuments(currentPage, itemsPerPage);
     fetchCollections();
 
     // Ocultar el toast automáticamente después de 6 segundos
@@ -260,9 +260,9 @@ export default function Home() {
     });
   };
 
-  const fetchDocuments = useCallback(async () => {
+  const fetchDocuments = useCallback(async (page: number = 1, limit: number = itemsPerPage) => {
     try {
-      const response: any = await documentService.getAll(1, 100);
+      const response: any = await documentService.getAll(page, limit);
       const docsArray = response?.data || [];
       const totalCount = response?.total || docsArray.length;
       setTotalGlobalDocuments(totalCount);
@@ -303,8 +303,8 @@ export default function Home() {
     fetchCollections();
     fetchCustomFields();
     fetchGlobalTags();
-    fetchDocuments();
-  }, [fetchDocuments]);
+    fetchDocuments(currentPage, itemsPerPage);
+  }, [fetchDocuments, currentPage, itemsPerPage]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -466,7 +466,7 @@ export default function Home() {
       setUploadQueueItems((prev) =>
         prev.map((item) => (item.id === fileItem.id ? uploadedItem : item))
       );
-      fetchDocuments();
+      fetchDocuments(currentPage, itemsPerPage);
     } catch (err: any) {
       setUploadQueueItems((prev) =>
         prev.map((item) =>
@@ -523,7 +523,7 @@ export default function Home() {
       await documentService.confirmMetadata(editingItem.backendId, payload);
 
       setEditingItem(null);
-      fetchDocuments();
+      fetchDocuments(currentPage, itemsPerPage);
       fetchGlobalTags();
       applyFilters();
       setFilterRefreshKey((prev) => prev + 1);
@@ -539,7 +539,7 @@ export default function Home() {
       setToastMessage(APP_TEXTS.aiMetadata.successToast);
       
       // Actualizamos los datos globales para que los facets se recalculen
-      await fetchDocuments();
+      await fetchDocuments(currentPage, itemsPerPage);
       await applyFilters();
       
       setFilterRefreshKey((prev) => prev + 1);
@@ -583,7 +583,7 @@ export default function Home() {
 
       await documentService.confirmMetadata(backendId, payload);
       setUploadQueueItems((prev) => prev.filter((item) => item.id !== queueId));
-      fetchDocuments(); 
+      fetchDocuments(currentPage, itemsPerPage); 
       applyFilters();
     } catch (error) {
       console.error("Error al confirmar metadatos:", error);
@@ -680,7 +680,7 @@ export default function Home() {
         setDocuments((prevDocs) => prevDocs.filter((doc) => doc.backendId !== documentId));
       }
       fetchCollections();
-      fetchDocuments();
+      fetchDocuments(currentPage, itemsPerPage);
     } catch (e) {
       console.error('Error al mover documento:', e);
       alert('Error al mover el documento');
@@ -692,7 +692,7 @@ export default function Home() {
     try {
       await documentService.deleteDocument(documentId);
       setDocuments((prevDocs) => prevDocs.filter((doc) => (doc.backendId || doc.id) !== documentId));
-      fetchDocuments();
+      fetchDocuments(currentPage, itemsPerPage);
     } catch (error) {
       console.error('Error al eliminar el documento:', error);
     }
@@ -809,7 +809,7 @@ export default function Home() {
       
       setSyncMessage(`Sincronización exitosa: ${result.added} archivos añadidos, ${result.removed} referencias eliminadas.`);
       
-      await fetchDocuments();
+      await fetchDocuments(currentPage, itemsPerPage);
       await fetchCollections();
       await applyFilters();
 
@@ -882,8 +882,8 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <main className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <main className="flex-1 overflow-y-auto p-8 h-auto">
           {/* Botón para alternar filtros */}
           <button
             onClick={() => setIsFiltersVisible(!isFiltersVisible)}
@@ -1036,58 +1036,81 @@ export default function Home() {
               />
             ))}
 
-            {totalPages > 1 && (
+            {/* Contenedor del paginador: se renderiza condicionalmente para evitar el espacio vacío si no hay paginación necesaria */}
+            {(totalPages > 1 || rawGlobalDocuments.length > 0) && (
               <div className="flex items-center justify-center gap-2 mt-6 pt-4 border-t border-[color:var(--border-color)]">
-                <button
-                  onClick={() => setCurrentPage(1)}
-                  disabled={currentPage === 1}
-                  className="px-2 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
-                >
-                  {APP_TEXTS.common.pagination.first}
-                </button>
-                <button
-                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
-                >
-                  {APP_TEXTS.common.pagination.previous}
-                </button>
-                
-                <div className="flex items-center gap-2 mx-2">
-                  <span className="text-xs text-[color:var(--text-secondary)]">
-                    {APP_TEXTS.common.pagination.page.replace('{currentPage}', currentPage.toString()).replace('{totalPages}', totalPages.toString())}
-                  </span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={totalPages}
-                    placeholder={APP_TEXTS.common.pagination.goToPage}
-                    className="w-16 px-2 py-1 text-xs rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const val = parseInt(e.currentTarget.value);
-                        if (!isNaN(val) && val >= 1 && val <= totalPages) {
-                          setCurrentPage(val);
-                        }
-                      }
+                <div className="flex items-center gap-2 mr-4">
+                  <span className="text-xs text-[color:var(--text-secondary)]">Items por página:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
                     }}
-                  />
+                    className="w-20 px-2 py-1 text-xs rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                  >
+                    {[10, 20, 25, 50, 100].map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <button
-                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
-                >
-                  {APP_TEXTS.common.pagination.next}
-                </button>
-                <button
-                  onClick={() => setCurrentPage(totalPages)}
-                  disabled={currentPage === totalPages}
-                  className="px-2 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
-                >
-                  {APP_TEXTS.common.pagination.last}
-                </button>
+                {totalPages > 1 && (
+                  <>
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="px-2 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
+                    >
+                      {APP_TEXTS.common.pagination.first}
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
+                    >
+                      {APP_TEXTS.common.pagination.previous}
+                    </button>
+                    
+                    <div className="flex items-center gap-2 mx-2">
+                      <span className="text-xs text-[color:var(--text-secondary)]">
+                        {APP_TEXTS.common.pagination.page.replace('{currentPage}', currentPage.toString()).replace('{totalPages}', totalPages.toString())}
+                      </span>
+                      <input
+                        type="number"
+                        min="1"
+                        max={totalPages}
+                        placeholder={APP_TEXTS.common.pagination.goToPage}
+                        className="w-16 px-2 py-1 text-xs rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = parseInt(e.currentTarget.value);
+                            if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                              setCurrentPage(val);
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <button
+                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
+                    >
+                      {APP_TEXTS.common.pagination.next}
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="px-2 py-1.5 text-xs font-medium rounded-lg bg-[var(--surface)] border border-[color:var(--border-color)] text-[color:var(--text-primary)] disabled:opacity-50 hover:bg-[var(--surface-hover)] transition-colors"
+                    >
+                      {APP_TEXTS.common.pagination.last}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1118,7 +1141,7 @@ export default function Home() {
           onClose={() => {
             setShowIngestModal(false);
             setCurrentTaskId(null);
-            fetchDocuments();
+            fetchDocuments(currentPage, itemsPerPage);
             fetchCollections();
           }}
           onSuccess={handleIngestSuccess}
