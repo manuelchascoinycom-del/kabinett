@@ -838,6 +838,19 @@ export default function Home() {
     return findName(collections);
   }, [modalParentId, collections]);
 
+  // Efecto para escuchar eventos externos de refresco de filtros
+  useEffect(() => {
+    const handleRefreshFilters = async () => {
+      // Primero recargamos datos base (colecciones y documentos base si aplica)
+      await fetchCollections();
+      await fetchDocuments();
+      // Finalmente forzamos la actualización de facetas
+      setFilterRefreshKey((prev) => prev + 1);
+    };
+    window.addEventListener('refresh-faceted-filters', handleRefreshFilters);
+    return () => window.removeEventListener('refresh-faceted-filters', handleRefreshFilters);
+  }, [fetchCollections, fetchDocuments]);
+
   const [isFiltersVisible, setIsFiltersVisible] = useState(true);
 
   return (
