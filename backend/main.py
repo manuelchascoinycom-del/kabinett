@@ -8,6 +8,7 @@ import models
 
 # Importar routers
 from routes import documents, collections, custom_fields, tags, search, auth, admin_users
+from routes import documents, collections, custom_fields, tags, search, auth, admin_users, ai_batch
 from dependencies import security_scheme, get_current_user
 
 load_dotenv()
@@ -41,6 +42,7 @@ app.include_router(custom_fields.router, dependencies=protected_dependency)
 app.include_router(tags.router, dependencies=protected_dependency)
 app.include_router(search.router, dependencies=protected_dependency)
 app.include_router(admin_users.router, dependencies=protected_dependency)
+app.include_router(ai_batch.router, dependencies=protected_dependency)
 
 
 # 3. OpenAPI Customizado para Swagger UI

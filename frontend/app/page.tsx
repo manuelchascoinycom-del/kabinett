@@ -858,7 +858,8 @@ export default function Home() {
         onDeleteCollection={handleDeleteCollectionClick}
         onMoveDocument={handleMoveDocument}
         onRefreshCollections={fetchCollections}
-
+        onFetchDocuments={fetchDocuments}
+        onApplyFilters={applyFilters}
       />
 
       <div className={`transition-all duration-300 ease-in-out ${isFiltersVisible ? 'w-64' : 'w-0'} overflow-hidden relative border-r border-[color:var(--border-color)]`}>

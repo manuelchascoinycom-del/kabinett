@@ -23,6 +23,8 @@ interface SidebarProps {
   onOpenConfigModal: () => void;
   onDeleteCollection?: (id: string) => void;
   onRefreshCollections?: () => void;
+  onFetchDocuments?: () => Promise<void>;
+  onApplyFilters?: () => Promise<void>;
   onMoveDocument: (docId: string, targetCollectionId: string) => void; // <-- Ya está dentro de la interfaz
 }
 
@@ -36,6 +38,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onThemeModeChange,
   onOpenNewCollectionModal,
   onRefreshCollections,
+  onFetchDocuments,
+  onApplyFilters,
   onMoveDocument,
   onOpenConfigModal,
   onDeleteCollection,
@@ -151,6 +155,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onSelect={setSelectedCollectionId}
               onDelete={onDeleteCollection}
               onAddSubcollection={(parentId) => onOpenNewCollectionModal(parentId)}
+              onBatchFinished={async (collectionId) => {
+                // Refrescar documentos y filtros
+                if (onRefreshCollections) onRefreshCollections();
+                
+                // Acción para refrescar la lista y los filtros
+                if (onFetchDocuments) await onFetchDocuments();
+                if (onApplyFilters) await onApplyFilters();
+                
+                if (collectionId === selectedCollectionId) {
+                  setSelectedCollectionId(null);
+                  setTimeout(() => setSelectedCollectionId(collectionId), 10);
+                }
+              }}
               onUpdate={onRefreshCollections}
               onMoveDocument={onMoveDocument} // <-- Corregido aquí
             />            
