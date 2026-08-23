@@ -163,6 +163,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 if (onFetchDocuments) await onFetchDocuments();
                 if (onApplyFilters) await onApplyFilters();
                 
+                // Forzar refresco de filtros facetados (si aplica en el componente padre o context)
+                // Se espera que en el padre se pueda acceder a la función setFilterRefreshKey
+                // O si hubiera un trigger de refresco global
+                const event = new CustomEvent('refresh-faceted-filters');
+                window.dispatchEvent(event);
+                
                 if (collectionId === selectedCollectionId) {
                   setSelectedCollectionId(null);
                   setTimeout(() => setSelectedCollectionId(collectionId), 10);

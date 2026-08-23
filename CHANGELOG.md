@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.3] - 2026-08-23
+### Fixed
+- **AI Progress Bar Layout:** Fixed an overflow issue in the batch AI progress component that caused an unwanted horizontal scroll and a slight cutoff on the right side, ensuring clean and proper rendering.
+- **Responsive Design & Laptop Optimization:** Improved overall layout responsiveness on standard laptop screens, introducing adaptive wrapping (`flex-wrap`) for document action buttons to prevent crowding and text overflow.
+- **Batch AI Faceted Filters Synchronization:** Fixed an issue where faceted filter options did not update automatically after completing a *batch* AI metadata generation process for a collection. Filters now refresh in real-time alongside document lists and collection trees upon batch completion.
+
+### Added
+- **Page Size Selector:** Added a configurable items-per-page selector in the paginator (`10`, `25`, `50`, `100`), allowing users to easily customize how many documents are displayed at once.
+
 ## [1.2.2] - 2026-08-23
 ### Fixed
 - Fixed faceted filters state synchronization: options now automatically refresh and update in real-time after generating metadata via AI, eliminating the need to manually reload the page.

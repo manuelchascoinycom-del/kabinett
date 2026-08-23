@@ -49,6 +49,7 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
   }, [refreshTrigger]);
 
 
+
   return (
     <aside className="w-64 bg-[var(--sidebar-bg)] border-r border-[color:var(--border-color)] p-5 shrink-0 flex flex-col justify-between overflow-y-auto transition-colors duration-200">
       <div className="space-y-6">

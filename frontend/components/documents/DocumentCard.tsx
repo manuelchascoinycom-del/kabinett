@@ -217,102 +217,104 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               {T.viewPdfIcon} {T.viewPdfBtn}
             </button>
           )}
+          {/* Barra de botones de acciones - Responsive con flex-wrap */}
+          <div className="flex flex-wrap items-center gap-2 mt-3">
 
-          {/* Descargar PDF */}
-          {(item.backendId || item.pdfUrl) && (
-            <button
-              type="button"
-              onClick={(e) => handleDownload(e)}
-              disabled={isDownloading}
-              className="px-3 py-1.5 bg-[var(--panel-bg-muted)] hover:bg-[var(--panel-hover)] text-[color:var(--text-primary)] border border-[color:var(--border-color)] text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              title={T.downloadPdfTooltip}
-            >
-              {T.downloadPdfIcon} {isDownloading ? T.downloadingPdfBtn : T.downloadPdfBtn}
-            </button>
-          )}
-
-          {/* Generar con IA */}
-          {onGenerateMetadata && item.backendId && (
-            <HasRole canEdit>
+            {/* Descargar PDF */}
+            {(item.backendId || item.pdfUrl) && (
               <button
                 type="button"
-                onClick={() => onGenerateMetadata(item.backendId!)}
-                disabled={isGenerating}
-                className="px-3 py-1.5 bg-[var(--accent-soft)] hover:bg-[var(--accent-surface)] text-[color:var(--accent)] border border-[color:var(--accent-border)] text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                title={T_AI.generateBtn}
+                onClick={(e) => handleDownload(e)}
+                disabled={isDownloading}
+                className="px-3 py-1.5 bg-[var(--panel-bg-muted)] hover:bg-[var(--panel-hover)] text-[color:var(--text-primary)] border border-[color:var(--border-color)] text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title={T.downloadPdfTooltip}
               >
-                {isGenerating ? T_AI.generatingBtn : T_AI.generateBtn}
+                {T.downloadPdfIcon} {isDownloading ? T.downloadingPdfBtn : T.downloadPdfBtn}
               </button>
-            </HasRole>
-          )}
+            )}
 
-          {/* Editar metadatos */}
-          <HasRole canEdit>
-            <button
-              type="button"
-              onClick={() => onEdit(item)}
-              className="px-3 py-1.5 bg-[var(--panel-bg-muted)] hover:bg-[var(--panel-hover)] text-[color:var(--text-secondary)] text-xs font-medium rounded-lg transition-colors border border-[color:var(--border-color)] cursor-pointer"
-            >
-              {T.editBtn}
-            </button>
-          </HasRole>
-
-          {/* Asignar colección (con subcolecciones jerárquicas) */}
-          {flattenedCollections.length > 0 && item.backendId && (
-            <HasRole canEdit>
-              <div className="relative min-w-[240px] w-64">
-                <div className="px-2 py-1 bg-[var(--input-bg)] border border-[color:var(--border-color)] rounded-t-lg">
-                  <input
-                    type="text"
-                    placeholder={APP_TEXTS.common.searchPlaceholder}
-                    value={collectionSearchQuery}
-                    onChange={(e) => setCollectionSearchQuery(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full bg-transparent text-xs outline-none text-[color:var(--text-secondary)] placeholder:text-[color:var(--text-tertiary)]"
-                  />
-                </div>
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      onAssignCollection(item.backendId!, e.target.value);
-                      e.target.value = '';
-                      setCollectionSearchQuery('');
-                    }
-                  }}
-                  defaultValue=""
-                  className="w-full bg-[var(--input-bg)] border-x border-b border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-b-lg px-2 py-1.5 outline-none hover:border-[color:var(--border-hover)] cursor-pointer truncate"
+            {/* Generar con IA */}
+            {onGenerateMetadata && item.backendId && (
+              <HasRole canEdit>
+                <button
+                  type="button"
+                  onClick={() => onGenerateMetadata(item.backendId!)}
+                  disabled={isGenerating}
+                  className="px-3 py-1.5 bg-[var(--accent-soft)] hover:bg-[var(--accent-surface)] text-[color:var(--accent)] border border-[color:var(--accent-border)] text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title={T_AI.generateBtn}
                 >
-                  <option value="" disabled>
-                    {flattenedCollections.filter((col) => 
-                      col.name.toLowerCase().includes(collectionSearchQuery.toLowerCase())
-                    ).length > 0 ? T.moveToOption : APP_TEXTS.common.noResults}
-                  </option>
-                  {flattenedCollections
-                    .filter((col) => col.name.toLowerCase().includes(collectionSearchQuery.toLowerCase()))
-                    .map((col) => (
-                      <option key={col.id} value={col.id}>
-                        {'\u00A0\u00A0'.repeat(col.level)} {col.level > 0 ? '└─ ' : ''}{col.name}
-                      </option>
-                    ))}       
-                </select>
-              </div>
-            </HasRole>
-          )}
+                  {isGenerating ? T_AI.generatingBtn : T_AI.generateBtn}
+                </button>
+              </HasRole>
+            )}
 
-
-          {/* Eliminar Documento */}
-          {onDelete && (item.backendId || item.id) && (
-            <HasRole canDelete>
+            {/* Editar metadatos */}
+            <HasRole canEdit>
               <button
                 type="button"
-                onClick={() => setShowDeleteModal(true)}
-                className="px-3 py-1.5 bg-[var(--danger-soft)] hover:bg-[var(--danger-surface)] text-[color:var(--danger)] border border-[color:var(--danger-border)] text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
-                title={T.deleteTooltip}
+                onClick={() => onEdit(item)}
+                className="px-3 py-1.5 bg-[var(--panel-bg-muted)] hover:bg-[var(--panel-hover)] text-[color:var(--text-secondary)] text-xs font-medium rounded-lg transition-colors border border-[color:var(--border-color)] cursor-pointer"
               >
-                {T.deleteIcon} {T.deleteBtn}
+                {T.editBtn}
               </button>
             </HasRole>
-          )}
+
+            {/* Asignar colección (con subcolecciones jerárquicas) */}
+            {flattenedCollections.length > 0 && item.backendId && (
+              <HasRole canEdit>
+                <div className="relative min-w-[200px] max-w-[240px]">
+                  <div className="px-2 py-1 bg-[var(--input-bg)] border border-[color:var(--border-color)] rounded-t-lg">
+                    <input
+                      type="text"
+                      placeholder={APP_TEXTS.common.searchPlaceholder}
+                      value={collectionSearchQuery}
+                      onChange={(e) => setCollectionSearchQuery(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-full bg-transparent text-xs outline-none text-[color:var(--text-secondary)] placeholder:text-[color:var(--text-tertiary)]"
+                    />
+                  </div>
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        onAssignCollection(item.backendId!, e.target.value);
+                        e.target.value = '';
+                        setCollectionSearchQuery('');
+                      }
+                    }}
+                    defaultValue=""
+                    className="w-full bg-[var(--input-bg)] border-x border-b border-[color:var(--border-color)] text-[color:var(--text-secondary)] text-xs rounded-b-lg px-2 py-1.5 outline-none hover:border-[color:var(--border-hover)] cursor-pointer truncate"
+                  >
+                    <option value="" disabled>
+                      {flattenedCollections.filter((col) => 
+                        col.name.toLowerCase().includes(collectionSearchQuery.toLowerCase())
+                      ).length > 0 ? T.moveToOption : APP_TEXTS.common.noResults}
+                    </option>
+                    {flattenedCollections
+                      .filter((col) => col.name.toLowerCase().includes(collectionSearchQuery.toLowerCase()))
+                      .map((col) => (
+                        <option key={col.id} value={col.id}>
+                          {'\u00A0\u00A0'.repeat(col.level)} {col.level > 0 ? '└─ ' : ''}{col.name}
+                        </option>
+                      ))}       
+                  </select>
+                </div>
+              </HasRole>
+            )}
+
+            {/* Eliminar Documento */}
+            {onDelete && (item.backendId || item.id) && (
+              <HasRole canDelete>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteModal(true)}
+                  className="px-3 py-1.5 bg-[var(--danger-soft)] hover:bg-[var(--danger-surface)] text-[color:var(--danger)] border border-[color:var(--danger-border)] text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
+                  title={T.deleteTooltip}
+                >
+                  {T.deleteIcon} {T.deleteBtn}
+                </button>
+              </HasRole>
+            )}
+          </div>
         </div>
       </div>
 
