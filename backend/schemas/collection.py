@@ -30,3 +30,6 @@ CollectionNode.model_rebuild()
 
 class AssignDocumentSchema(BaseModel):
     document_id: uuid.UUID
+
+class MoveDocumentSchema(BaseModel):
+    target_collection_id: uuid.UUID

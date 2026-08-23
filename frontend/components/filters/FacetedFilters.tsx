@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import React from 'react';
 import { APP_TEXTS } from '@/app/constants/texts';
 
@@ -24,6 +25,7 @@ interface FacetedFiltersProps {
   onToggleComposer: (composer: string) => void;
   onToggleTag: (tag: string) => void;
   onChangeCustomFilter: (fieldName: string, value: string) => void;
+  refreshTrigger?: number | any;
   onClearAllFilters: () => void;
 }
 
@@ -38,8 +40,14 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
   onToggleTag,
   onChangeCustomFilter,
   onClearAllFilters,
+  refreshTrigger,
 }) => {
   const T = APP_TEXTS.facetedFilters;
+  useEffect(() => {
+    // Si la lógica de carga de facetas está en un hook externo,
+    // asegúrate de que dicho hook acepte este refreshTrigger.
+  }, [refreshTrigger]);
+
 
   return (
     <aside className="w-64 bg-[var(--sidebar-bg)] border-r border-[color:var(--border-color)] p-5 shrink-0 flex flex-col justify-between overflow-y-auto transition-colors duration-200">

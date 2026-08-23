@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { APP_TEXTS } from '@/app/constants/texts';
 import { useAuth } from '@/context/AuthContext';
 import { HasRole } from '@/components/auth/HasRole';
-import { CollectionTreeItem } from './CollectionTreeItem'; // Ajusta la ruta según dónde lo hayas guardado
-import { Collection } from '@/services/collectionService'; // O ajusta la ruta relativa según corresponda
+import { CollectionTreeItem } from './CollectionTreeItem';
+import { Collection } from '@/services/collectionService';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -19,10 +19,13 @@ interface SidebarProps {
   collections: Collection[];
   themeMode: ThemeMode;
   onThemeModeChange: (mode: ThemeMode) => void;
-  // Actualizado: ahora acepta opcionalmente el ID del padre
   onOpenNewCollectionModal: (parentId?: string) => void; 
   onOpenConfigModal: () => void;
   onDeleteCollection?: (id: string) => void;
+  onRefreshCollections?: () => void;
+  onFetchDocuments?: () => Promise<void>;
+  onApplyFilters?: () => Promise<void>;
+  onMoveDocument: (docId: string, targetCollectionId: string) => void; // <-- Ya está dentro de la interfaz
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -34,6 +37,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   themeMode,
   onThemeModeChange,
   onOpenNewCollectionModal,
+  onRefreshCollections,
+  onFetchDocuments,
+  onApplyFilters,
+  onMoveDocument,
   onOpenConfigModal,
   onDeleteCollection,
 }) => {
@@ -50,41 +57,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const sortedCollections = React.useMemo(() => sortCollections(collections), [collections]);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const [isResizing, setIsResizing] = useState(false);
-  const TT = APP_TEXTS.theme;
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-      let newWidth = e.clientX;
-      if (newWidth < 180) newWidth = 180;
-      if (newWidth > 500) newWidth = 500;
-      setSidebarWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-      document.body.style.cursor = 'default';
-    };
-
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing]);
-
   const [mounted, setMounted] = useState(false);
   const { userRole, logout } = useAuth();
+  const TT = APP_TEXTS.theme;
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Único useEffect para el redimensionamiento del sidebar
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return;
@@ -149,7 +130,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* 2. ZONA CENTRAL CON SCROLL (Solo para las colecciones) */}
-      {/* Añadimos overflow-x-hidden para matar el scroll horizontal directamente en el contenedor */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar border-t border-[color:var(--border-color)] pt-4 pb-2">
         <div className="flex items-center justify-between mb-2 pr-2">
           <span className="text-[11px] font-bold text-[color:var(--text-muted)] uppercase tracking-wider shrink-0">
@@ -175,7 +155,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onSelect={setSelectedCollectionId}
               onDelete={onDeleteCollection}
               onAddSubcollection={(parentId) => onOpenNewCollectionModal(parentId)}
-            />
+              onBatchFinished={async (collectionId) => {
+                // Refrescar documentos y filtros
+                if (onRefreshCollections) onRefreshCollections();
+                
+                // Acción para refrescar la lista y los filtros
+                if (onFetchDocuments) await onFetchDocuments();
+                if (onApplyFilters) await onApplyFilters();
+                
+                if (collectionId === selectedCollectionId) {
+                  setSelectedCollectionId(null);
+                  setTimeout(() => setSelectedCollectionId(collectionId), 10);
+                }
+              }}
+              onUpdate={onRefreshCollections}
+              onMoveDocument={onMoveDocument} // <-- Corregido aquí
+            />            
           ))}
         </div>
       </div>
@@ -202,7 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </Link>
         </HasRole>
 
-        {/* Solo usuarios con permiso de edición (Editor y Admin) pueden acceder a Campos Personalizados */}
+        {/* Solo usuarios con permiso de edición pueden acceder a Campos Personalizados */}
         <HasRole canEdit>
           <button
             onClick={onOpenConfigModal}
@@ -251,4 +246,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
     </aside>
   );
-}
+};

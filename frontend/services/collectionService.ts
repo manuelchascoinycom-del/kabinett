@@ -10,6 +10,12 @@ export interface Collection {
   children?: Collection[];
 }
 
+export interface BatchStatus {
+  total: number;
+  ready: number;
+  is_processing: boolean;
+}
+
 export const collectionService = {
   getAll: async (): Promise<Collection[]> => {
     return fetchApi<Collection[]>('/collections?tree=true');
@@ -44,4 +50,30 @@ export const collectionService = {
       method: 'DELETE',
     });
   },
+  update: async (collectionId: string, name: string): Promise<Collection> => {
+    return fetchApi<Collection>(`/collections/${collectionId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    });
+
+
+  },
+  generateBatchAI: async (collectionId: string): Promise<{ message: string; queued: number }> => {
+    return fetchApi<{ message: string; queued: number }>(`/collections/${collectionId}/generate-batch-ai`, {
+      method: 'POST',
+    }); 
+  },
+
+  getBatchStatus: async (collectionId: string): Promise<BatchStatus> => {
+    return fetchApi<BatchStatus>(`/collections/${collectionId}/batch-status`);
+  },
+
+  moveDocument: async (documentId: string, targetCollectionId: string): Promise<void> => {
+    return fetchApi<void>(`/collections/${documentId}/move`, {
+      method: 'PUT',
+      body: JSON.stringify({ target_collection_id: targetCollectionId }),
+    });
+  },
 };
+
+  

@@ -95,6 +95,7 @@ const getCollectionPath = (id: string, cols: Collection[]): string[] => {
 };
 
 export default function Home() {
+  const [filterRefreshKey, setFilterRefreshKey] = useState(0);
   const { userRole } = useAuth();
 
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -525,6 +526,7 @@ export default function Home() {
       fetchDocuments();
       fetchGlobalTags();
       applyFilters();
+      setFilterRefreshKey((prev) => prev + 1);
     } catch (e) {
       console.error('Error al confirmar metadatos:', e);
     }
@@ -535,7 +537,12 @@ export default function Home() {
     try {
       await documentService.generateMetadata(backendId);
       setToastMessage(APP_TEXTS.aiMetadata.successToast);
+      
+      // Actualizamos los datos globales para que los facets se recalculen
+      await fetchDocuments();
       await applyFilters();
+      
+      setFilterRefreshKey((prev) => prev + 1);
       setTimeout(() => setToastMessage(null), 3000);
     } catch (e: any) {
       console.error('Error al generar metadatos:', e);
@@ -663,6 +670,23 @@ export default function Home() {
       console.error('Error al asignar documento:', e);
     }
   };
+
+  const handleMoveDocument = async (documentId: string, targetCollectionId: string) => {
+    try {
+      await collectionService.moveDocument(documentId, targetCollectionId);
+      // Actualizar estado local: si estamos en una vista de colección, eliminar el documento,
+      // sino simplemente refrescar.
+      if (selectedCollectionId) {
+        setDocuments((prevDocs) => prevDocs.filter((doc) => doc.backendId !== documentId));
+      }
+      fetchCollections();
+      fetchDocuments();
+    } catch (e) {
+      console.error('Error al mover documento:', e);
+      alert('Error al mover el documento');
+    }
+  };
+
 
   const handleDeleteDocument = async (documentId: string) => {
     try {
@@ -832,6 +856,10 @@ export default function Home() {
         }}
         onOpenConfigModal={() => setShowConfigModal(true)}
         onDeleteCollection={handleDeleteCollectionClick}
+        onMoveDocument={handleMoveDocument}
+        onRefreshCollections={fetchCollections}
+        onFetchDocuments={fetchDocuments}
+        onApplyFilters={applyFilters}
       />
 
       <div className={`transition-all duration-300 ease-in-out ${isFiltersVisible ? 'w-64' : 'w-0'} overflow-hidden relative border-r border-[color:var(--border-color)]`}>
@@ -849,6 +877,7 @@ export default function Home() {
               setSelectedCustomFilters({ ...selectedCustomFilters, [fieldName]: value })
             }
             onClearAllFilters={clearAllFilters}
+            refreshTrigger={filterRefreshKey}
           />
         </div>
       </div>
@@ -1001,6 +1030,8 @@ export default function Home() {
 
                 onGenerateMetadata={handleGenerateMetadata}
                 isGenerating={!!generatingMetadataIds[doc.backendId!]}
+                onMoveCollection={handleMoveDocument}
+
 
               />
             ))}
