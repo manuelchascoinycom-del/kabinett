@@ -3,6 +3,9 @@
 All notable changes to this project will be documented in this file.
 
 ## [1.2.3] - 2026-08-23
+### Fixed
+- **AI Progress Bar Layout:** Fixed an overflow issue in the batch AI progress component that caused an unwanted horizontal scroll and a slight cutoff on the right side, ensuring clean and proper rendering.
+
 ### Added
 - **Page Size Selector:** Added a configurable items-per-page selector in the paginator (`10`, `25`, `50`, `100`), allowing users to easily customize how many documents are displayed at once.
 
