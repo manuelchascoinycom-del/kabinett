@@ -332,12 +332,12 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
 
       {/* Barra de progreso en tiempo real */}
       {isPolling && (
-        <div className="w-full px-2 py-1.5 mt-1 ml-4 text-[10px] space-y-1 bg-[var(--panel-bg)] rounded border border-emerald-500/30 animate-fadeIn">
-          <div className="flex justify-between text-emerald-500 font-semibold">
-            <span>
+        <div className="w-[calc(100%-1rem)] px-2 py-1.5 mt-1 ml-4 text-[10px] space-y-1 bg-[var(--panel-bg)] rounded border border-emerald-500/30 animate-fadeIn box-border overflow-hidden">
+          <div className="flex justify-between items-center text-emerald-500 font-semibold truncate">
+            <span className="truncate mr-2">
               {APP_TEXTS.sidebar.processing} ({currentReady} / {currentTotal})
             </span>
-            <span>{progressPercent}%</span>
+            <span className="shrink-0">{progressPercent}%</span>
           </div>
           <div className="w-full bg-emerald-900/20 h-1 rounded-full overflow-hidden">
             <div 
