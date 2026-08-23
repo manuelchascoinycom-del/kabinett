@@ -1,3 +1,4 @@
+// components/DocumentCard.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -29,6 +30,7 @@ interface DocumentCardProps {
   onEdit: (item: any) => void;
   onViewPdf: (backendId: string, title: string) => void;
   onDownloadPdf?: (backendId: string, title: string) => void | Promise<void>;
+  onMoveCollection: (backendId: string, targetCollectionId: string) => void;
   onAssignCollection: (backendId: string, collectionId: string) => void;
   onDelete?: (backendId: string) => void;
   onGenerateMetadata?: (backendId: string) => void;
@@ -41,11 +43,10 @@ interface FlattenedCollection {
   level: number;
 }
 
-// Función recursiva para aplanar las colecciones y calcular su nivel de anidación, ordenándolas alfabéticamente
+// Función recursiva para aplanar las colecciones y calcular su nivel de anidación
 const flattenCollections = (cols: CollectionNode[], level = 0): FlattenedCollection[] => {
   let result: FlattenedCollection[] = [];
   
-  // Ordenar alfabéticamente por nombre
   const sortedCols = [...cols].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
   for (const col of sortedCols) {
@@ -66,7 +67,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onViewPdf,
   onGenerateMetadata,
   isGenerating,
-
+  onMoveCollection,
   onDownloadPdf,
   onAssignCollection,
   onDelete,
@@ -136,11 +137,23 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     }
   };
 
+  // Corregido: handleDragStart ubicado en el ámbito correcto del componente
+  const handleDragStart = (e: React.DragEvent) => {
+    if (item.backendId) {
+      e.dataTransfer.setData('text/plain', item.backendId);
+      e.dataTransfer.effectAllowed = 'move';
+    }
+  };
+
   const flattenedCollections = flattenCollections(collections);
 
   return (
     <>
-      <div className="bg-[var(--panel-bg)] border border-[color:var(--border-color)] rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-[color:var(--border-hover)] hover:bg-[var(--panel-hover)] transition-all shadow-md">
+      <div 
+        className="bg-[var(--panel-bg)] border border-[color:var(--border-color)] rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-[color:var(--border-hover)] hover:bg-[var(--panel-hover)] transition-all shadow-md cursor-grab active:cursor-grabbing" 
+        draggable 
+        onDragStart={handleDragStart}
+      >
         <div className="space-y-1.5 flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm">{T.fileIcon}</span>
@@ -280,11 +293,12 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
                       <option key={col.id} value={col.id}>
                         {'\u00A0\u00A0'.repeat(col.level)} {col.level > 0 ? '└─ ' : ''}{col.name}
                       </option>
-                    ))}
+                    ))}       
                 </select>
               </div>
             </HasRole>
           )}
+
 
           {/* Eliminar Documento */}
           {onDelete && (item.backendId || item.id) && (

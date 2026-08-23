@@ -7,6 +7,8 @@ from fastapi import HTTPException, status, BackgroundTasks
 import models
 from schemas.document import DocumentExternalCreate
 from services.task_tracker import task_tracker
+from sqlalchemy import and_
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,36 @@ def register_external_document(
         background_tasks.add_task(process_pdf_in_background, str(new_doc.id), abs_path)
 
     return new_doc
+
+def get_unprocessed_document_ids(db: Session, collection_id: uuid.UUID) -> list[uuid.UUID]:
+    """
+    Obtiene todos los IDs de documentos en una colección (incluyendo subcolecciones)
+    que no tienen ni `metadata_confirmed` ni `metadata_suggested`.
+    """
+    # 1. Obtener todos los IDs de colección (recursivo)
+    collection_ids = [collection_id]
+    
+    def get_subcollection_ids(parent_id: uuid.UUID):
+        subs = db.query(models.Collection.id).filter(models.Collection.parent_id == parent_id).all()
+        for sub in subs:
+            collection_ids.append(sub.id)
+            get_subcollection_ids(sub.id)
+    
+    get_subcollection_ids(collection_id)
+    
+    # 2. Buscar documentos en esas colecciones
+    # Filtro con and_: Ambos campos deben ser nulos para considerarse totalmente sin procesar
+    docs = db.query(models.Document.id).join(
+        models.document_collections
+    ).filter(
+        models.document_collections.c.collection_id.in_(collection_ids),
+        and_(
+            models.Document.metadata_confirmed == None,
+            models.Document.metadata_suggested == None
+        )
+    ).distinct().all()
+    
+    return [d.id for d in docs]
 
 
 def scan_directory_dry_run(path: Union[str, Path]) -> Dict[str, Any]:

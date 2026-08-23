@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.2] - 2026-08-23
+### Fixed
+- Fixed faceted filters state synchronization: options now automatically refresh and update in real-time after generating metadata via AI, eliminating the need to manually reload the page.
+
+### Added
+- **Collection Renaming:** Added the ability to rename collections directly from the sidebar. Changes are now synchronized both in the database and physically on the file system for directory-backed collections.
+- **Improved UI Experience:** Implemented seamless inline editing for collections and subcollections with real-time state updates, eliminating the need for full-page reloads.
+- **Drag-and-Drop Organization**: Users can now drag document cards and drop them directly onto any root collection or nested subcollection in the sidebar to quickly reassign them.
+- **Batch AI Metadata Generation:** Introduced asynchronous batch AI processing for collections, allowing users to trigger metadata extraction for entire batches with seamless background execution.
+- **Real-Time Progress Tracking:** Implemented a dynamic progress bar and modal sequence that accurately tracks actual AI-processed documents based on generated metadata (`metadata_suggested`) rather than initial states, ensuring reliable progress feedback and preventing polling loops.
+- **Automatic UI Synchronization:** Document lists and collection trees now automatically refresh upon batch completion, instantly rendering newly extracted metadata without requiring manual page reloads.
+
 ## [1.2.1] - 2026-08-20
 ### Fixed
 - Resolved a critical OCR extraction crash (`FileNotFoundError`) inside the backend Docker container by making Poppler and Tesseract paths dynamic (environment-aware).
