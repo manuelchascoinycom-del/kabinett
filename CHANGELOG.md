@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.5] - 2026-08-24
+### Fixed
+- **Container:** Renamed `Dockerfile` files to `Containerfile` to ensure full compatibility with `containerd`.
+
 ## [1.2.4] - 2026-08-24
 ### Fixed
 - **DocumentCard:** Solucionado el problema de desbordamiento y corte de botones de acción en pantallas estrechas mediante la implementación de un flujo flexible (`flex-wrap`).
