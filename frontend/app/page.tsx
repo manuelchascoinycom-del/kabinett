@@ -875,8 +875,9 @@ export default function Home() {
         onApplyFilters={applyFilters}
       />
 
-      <div className={`transition-all duration-300 ease-in-out ${isFiltersVisible ? 'w-64' : 'w-0'} overflow-hidden relative border-r border-[color:var(--border-color)]`}>
-        <div className="w-64">
+      {/* Panel de filtros facetados con comportamiento responsive en overlay flotante para pantallas estrechas */}
+      <div className={`transition-all duration-300 ease-in-out ${isFiltersVisible ? 'w-64 translate-x-0' : 'w-0 -translate-x-full lg:translate-x-0'} absolute lg:relative z-30 h-full bg-[var(--app-bg)] lg:bg-transparent overflow-hidden border-r border-[color:var(--border-color)] shadow-2xl lg:shadow-none`}>
+        <div className="w-64 h-full overflow-y-auto">
            <FacetedFilters
             facets={facets}
             selectedComposers={selectedComposers}
