@@ -18,9 +18,15 @@ export interface BackendDocument {
   custom_metadata?: Record<string, any>;
 }
 
+export interface Facets {
+  composerCounts: Record<string, number>;
+  tagCounts: Record<string, number>;
+}
+
 export interface DocumentListResponse {
   data: BackendDocument[];
   total: number;
+  facets?: Facets;
 }
 
 export interface FilterPayload {

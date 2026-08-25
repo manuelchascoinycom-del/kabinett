@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.6] - 2026-08-25
+### Bug Fixes & Improvements
+* **Documents API (`/filter`):** Enhanced faceted search architecture to fully support **multi-selection** for composers, tags, and custom fields without hiding unselected options.
+* **JSONB Metadata Filtering:** Corrected tag lookups and custom metadata comparisons to query document JSONB structures accurately (`.astext` and array element extraction).
+* **Independent Facet Counting:** Refactored facet computation to rely on the base collection and global search scope, ensuring stable and reliable multi-select filters.
+
 ## [1.2.5] - 2026-08-24
 ### Fixed
 - **Container:** Renamed `Dockerfile` files to `Containerfile` to ensure full compatibility with `containerd`.

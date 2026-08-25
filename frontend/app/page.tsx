@@ -4,7 +4,6 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import dynamic from 'next/dynamic';
 
-import { TagInput } from '@/components/ui/TagInput';
 import { UploadQueue } from '@/components/upload/UploadQueue';
 import { DocumentCard } from '@/components/documents/DocumentCard';
 import { FacetedFilters } from '@/components/filters/FacetedFilters';
@@ -20,7 +19,7 @@ import { IngestProgressModal } from '@/components/modals/IngestProgressModal';
 import { VersionFooter } from "@/components/layout/VersionFooter/VersionFooter";
 
 import { collectionService } from '@/services/collectionService';
-import { documentService, BackendDocument } from '@/services/documentService';
+import { documentService } from '@/services/documentService';
 import { customFieldsService } from '@/services/customFieldsService';
 import { tagService } from '@/services/tagService';
 import { APP_TEXTS } from '@/app/constants/texts';
@@ -115,7 +114,7 @@ export default function Home() {
 
   const [uploadQueueItems, setUploadQueueItems] = useState<UploadItem[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
-  const [rawGlobalDocuments, setRawGlobalDocuments] = useState<UploadItem[]>([]);
+  const [facets, setFacets] = useState<{ composerCounts: Record<string, number>; tagCounts: Record<string, number> }>({ composerCounts: {}, tagCounts: {} });
   const [globalError, setGlobalError] = useState<string | null>(null);
 
   const [editingItem, setEditingItem] = useState<UploadItem | null>(null);
@@ -260,52 +259,6 @@ export default function Home() {
     });
   };
 
-  const fetchDocuments = useCallback(async (page: number = 1, limit: number = itemsPerPage) => {
-    try {
-      const response: any = await documentService.getAll(page, limit);
-      const docsArray = response?.data || [];
-      const totalCount = response?.total || docsArray.length;
-      setTotalGlobalDocuments(totalCount);
-      setTotalGlobalCount(totalCount);
-
-      const loadedItems: UploadItem[] = docsArray.map((doc: BackendDocument) => ({
-        id: doc.id,
-        backendId: doc.id,
-        file: { name: doc.filename, size: 0 } as File,
-        progress: 100,
-        status: 'success',
-        backendStatus: doc.status,
-        suggestedMetadata: doc.metadata_suggested
-          ? {
-              title: doc.metadata_suggested.title || '',
-              composer: doc.metadata_suggested.composer || '',
-              tags: doc.metadata_suggested.tags || [],
-            }
-          : undefined,
-        confirmedMetadata: doc.metadata_confirmed
-          ? {
-              title: doc.metadata_confirmed.title || '',
-              composer: doc.metadata_confirmed.composer || '',
-              tags: doc.metadata_confirmed.tags || [],
-            }
-          : undefined,
-        customMetadata: doc.custom_metadata || {},
-        isConfirmed: doc.status === 'ready' || doc.status === 'CONFIRMED',
-      }));
-
-      setRawGlobalDocuments(loadedItems);
-    } catch (e) {
-      console.error('Error al cargar documentos globales:', e);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCollections();
-    fetchCustomFields();
-    fetchGlobalTags();
-    fetchDocuments(currentPage, itemsPerPage);
-  }, [fetchDocuments, currentPage, itemsPerPage]);
-
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters]);
@@ -335,6 +288,9 @@ export default function Home() {
       if (totalCount !== undefined) {
         setTotalGlobalDocuments(totalCount);
       }
+      if (response?.facets) {
+        setFacets(response.facets);
+      }
 
       const readyDocs = docsArray
         .filter((doc: any) => doc.status !== 'PENDING_REVIEW')
@@ -360,6 +316,20 @@ export default function Home() {
     }
   }, [searchQuery, selectedCollectionId, selectedComposers, selectedTags, selectedCustomFilters, currentPage, itemsPerPage, sortOption]);
 
+  const fetchDocuments = useCallback(async (page: number = 1, limit: number = itemsPerPage) => {
+    // En lugar de llamar a getAll, llamamos a applyFilters para mantener la consistencia
+    // Esto asegura que si hay filtros activos, se mantengan,
+    // y que las facetas se actualicen correctamente al cargar.
+    await applyFilters();
+  }, [applyFilters]);
+
+  useEffect(() => {
+    fetchCollections();
+    fetchCustomFields();
+    fetchGlobalTags();
+    fetchDocuments(currentPage, itemsPerPage);
+  }, [fetchDocuments, currentPage, itemsPerPage]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       applyFilters();
@@ -369,24 +339,7 @@ export default function Home() {
 
   const totalPages = Math.ceil(totalGlobalDocuments / itemsPerPage) || 1;
 
-  const facets = useMemo(() => {
-    const composerCounts: Record<string, number> = {};
-    const tagCounts: Record<string, number> = {};
-
-    rawGlobalDocuments.forEach((doc) => {
-      const composer = doc.confirmedMetadata?.composer || doc.suggestedMetadata?.composer;
-      if (composer) {
-        composerCounts[composer] = (composerCounts[composer] || 0) + 1;
-      }
-
-      const tags = doc.confirmedMetadata?.tags || doc.suggestedMetadata?.tags || [];
-      tags.forEach((tag) => {
-        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-      });
-    });
-
-    return { composerCounts, tagCounts };
-  }, [rawGlobalDocuments]);
+  // Facetas mantenidas desde el backend
 
   const uploadFileToServer = async (fileItem: UploadItem) => {
     const formData = new FormData();
@@ -1051,7 +1004,7 @@ export default function Home() {
             ))}
 
             {/* Contenedor del paginador: se renderiza condicionalmente para evitar el espacio vacío si no hay paginación necesaria */}
-            {(totalPages > 1 || rawGlobalDocuments.length > 0) && (
+            {(totalPages > 1 || totalGlobalDocuments > 0) && (
               <div className="flex items-center justify-center gap-2 mt-6 pt-4 border-t border-[color:var(--border-color)]">
                 <div className="flex items-center gap-2 mr-4">
                   <span className="text-xs text-[color:var(--text-secondary)]">Items por página:</span>
