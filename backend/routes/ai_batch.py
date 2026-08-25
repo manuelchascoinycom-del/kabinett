@@ -1,12 +1,13 @@
 import time
 import uuid
 from typing import List
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from fastapi import BackgroundTasks, Depends, HTTPException, status, APIRouter
 import models
 from database import get_db
 from dependencies import require_roles
-from services.document_service import get_unprocessed_document_ids
+from services.document_service import get_unprocessed_document_ids, get_collection_ids_recursive
 from services.extractor import extract_text_from_first_pages
 from services.ai_service import analyze_document_metadata
 import logging
@@ -80,6 +81,7 @@ def get_batch_status(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
+
     db.expire_all()
     db.rollback()
 
@@ -87,39 +89,41 @@ def get_batch_status(
     if not collection:
         raise HTTPException(status_code=404, detail="Colección no encontrada")
     
-    # 1. Total de documentos en la colección
-    total = db.query(models.Document).join(
-        models.document_collections
-    ).filter(
-        models.document_collections.c.collection_id == collection_id
-    ).count()
+    # 1. Obtener lista recursiva de colecciones (Padre + Hijas)
+    collection_ids = get_collection_ids_recursive(db, collection_id)
     
-    # 2. Documentos REALMENTE procesados por IA (metadata_suggested NO es NULL)
-    ready = db.query(models.Document).join(
+    # 2. TOTAL RECURSIVO (Aquí estaba el fallo: debe usar .in_(collection_ids) en vez de == collection_id)
+    total = db.query(models.Document.id).join(
         models.document_collections
     ).filter(
-        models.document_collections.c.collection_id == collection_id,
+        models.document_collections.c.collection_id.in_(collection_ids)
+    ).distinct().count()
+    
+    # 3. Documentos procesados por IA (ready)
+    ready = db.query(models.Document.id).join(
+        models.document_collections
+    ).filter(
+        models.document_collections.c.collection_id.in_(collection_ids),
         models.Document.metadata_suggested.isnot(None)
-    ).count()
+    ).distinct().count()
     
-    # 3. Documentos con error (si aplica en tu lógica de errores)
-    error_count = db.query(models.Document).join(
+    # 4. Documentos con error
+    error_count = db.query(models.Document.id).join(
         models.document_collections
     ).filter(
-        models.document_collections.c.collection_id == collection_id,
+        models.document_collections.c.collection_id.in_(collection_ids),
         models.Document.status == models.DocumentStatus.ERROR
-    ).count()
+    ).distinct().count()
 
     processed = ready + error_count
     
-    # Sigue procesándose si aún quedan documentos por rellenar su metadata
+    # Sigue procesándose si aún quedan documentos por rellenar su metadata respecto al total real de la jerarquía
     is_processing = total > 0 and processed < total
 
     return {
-        "total": total,
+        "total": total,        # <--- Ahora devolverá 11 (la suma del padre y sus subcolecciones)
         "ready": ready,
         "processed": processed,
         "is_processing": is_processing
     }
-    
    

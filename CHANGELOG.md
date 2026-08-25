@@ -2,11 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.7] - 2026-08-25
+### Fixes
+- **Collections API (`batch-status`):** Updated recursive query logic to aggregate total document counts, ready states, and errors across parent collections and subcollections.
+- **Frontend UI (`CollectionTreeItem`):** Adjusted the real-time AI progress bar calculation to leverage the global recursive tree total instead of relying only on direct collection nodes.
+- **Batch Completion Control:** Implemented a single-execution guard (`useRef`) on batch finish handlers to prevent duplicate update triggers and eliminate interface jitter.
+
 ## [1.2.6] - 2026-08-25
 ### Bug Fixes & Improvements
-* **Documents API (`/filter`):** Enhanced faceted search architecture to fully support **multi-selection** for composers, tags, and custom fields without hiding unselected options.
-* **JSONB Metadata Filtering:** Corrected tag lookups and custom metadata comparisons to query document JSONB structures accurately (`.astext` and array element extraction).
-* **Independent Facet Counting:** Refactored facet computation to rely on the base collection and global search scope, ensuring stable and reliable multi-select filters.
+- **Documents API (`/filter`):** Enhanced faceted search architecture to fully support **multi-selection** for composers, tags, and custom fields without hiding unselected options.
+- **JSONB Metadata Filtering:** Corrected tag lookups and custom metadata comparisons to query document JSONB structures accurately (`.astext` and array element extraction).
+- **Independent Facet Counting:** Refactored facet computation to rely on the base collection and global search scope, ensuring stable and reliable multi-select filters.
 
 ## [1.2.5] - 2026-08-24
 ### Fixed
