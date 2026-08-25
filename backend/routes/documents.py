@@ -225,9 +225,11 @@ def filter_documents(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
+    from sqlalchemy import func, or_, and_
+
     query = db.query(models.Document).filter(models.Document.status != "PENDING_REVIEW")
 
-    # 1. Filtrado por Colección (soportando tanto collection_id como collection_ids)
+    # 1. Filtrado por Colección (soportando collection_id y collection_ids)
     col_id = payload.collection_id
     col_ids = getattr(payload, 'collection_ids', None) or (
         [payload.collection_id] if getattr(payload, 'collection_id', None) else []
@@ -236,7 +238,6 @@ def filter_documents(
         col_ids.append(col_id)
 
     if col_ids:
-        # Buscamos documentos que pertenezcan a cualquiera de las colecciones indicadas mediante la tabla intermedia
         query = query.join(models.Document.collections).filter(models.Collection.id.in_(col_ids))
 
     # 2. Filtrado de texto global (query o search)
@@ -258,21 +259,33 @@ def filter_documents(
         for comp in payload.composers:
             composer_filters.append(models.Document.metadata_confirmed['composer'].as_string() == comp)
             composer_filters.append(models.Document.metadata_suggested['composer'].as_string() == comp)
-        from sqlalchemy import or_
         query = query.filter(or_(*composer_filters))
 
-    # 4. Filtrado por Etiquetas (Tags)
+    # Subconsulta global para extraer tags de los JSONB (evita listas vacías)
+    tag_extract_subquery = db.query(
+        models.Document.id.label('doc_id'),
+        func.jsonb_array_elements_text(func.coalesce(models.Document.metadata_confirmed['tags'], '[]')).label('tag')
+    ).union_all(
+        db.query(
+            models.Document.id.label('doc_id'),
+            func.jsonb_array_elements_text(func.coalesce(models.Document.metadata_suggested['tags'], '[]')).label('tag')
+        )
+    ).subquery()
+
+    # 4. Filtrado por Etiquetas (Tags) usando JSONB en lugar de relaciones vacías
     if payload.tags and len(payload.tags) > 0:
         for tag_name in payload.tags:
-            query = query.join(models.Document.tags).filter(models.Tag.name.ilike(tag_name))
+            doc_ids_with_tag = db.query(tag_extract_subquery.c.doc_id).filter(
+                tag_extract_subquery.c.tag.ilike(tag_name)
+            )
+            query = query.filter(models.Document.id.in_(doc_ids_with_tag))
 
-    # 5. Filtrado por Campos Personalizados (custom_filters o custom_fields)
+    # 5. Filtrado por Campos Personalizados (usando .astext para evitar listas vacías)
     custom_f = getattr(payload, 'custom_fields', None) or getattr(payload, 'custom_filters', {})
     if custom_f:
         for field_key, expected_val in custom_f.items():
             if expected_val is not None and str(expected_val).strip() != "":
-                # Comparamos dentro del campo JSONB custom_metadata de PostgreSQL
-                query = query.filter(models.Document.custom_metadata[field_key].as_string() == str(expected_val))
+                query = query.filter(models.Document.custom_metadata[field_key].astext == str(expected_val))
 
     # 5.5. Ordenación
     sort_field = getattr(models.Document, payload.sort_by, models.Document.created_at)
@@ -281,8 +294,63 @@ def filter_documents(
     else:
         query = query.order_by(sort_field.asc())
 
-    # Obtener el total exacto de resultados antes de paginar
+    # Total de resultados exacto antes de paginar
     total_results = query.count()
+    
+    # ========================================================
+    # CÁLCULO DE FACETAS INDEPENDIENTES (Colección + Búsqueda)
+    # ========================================================
+    # Para que al seleccionar un compositor no desaparezcan los tags (ni viceversa),
+    # las facetas se calculan estrictamente sobre la colección y el texto actual, 
+    # permitiendo selección múltiple libre en todas las dimensiones.
+    def get_collection_base_query():
+        q = db.query(models.Document).filter(models.Document.status != "PENDING_REVIEW")
+        if col_ids:
+            q = q.join(models.Document.collections).filter(models.Collection.id.in_(col_ids))
+        if search_text and search_text.strip():
+            q_lower = f"%{search_text.lower().strip()}%"
+            q = q.filter(
+                (models.Document.filename.ilike(q_lower)) |
+                (models.Document.raw_text.ilike(q_lower)) |
+                (models.Document.metadata_confirmed['title'].as_string().ilike(q_lower)) |
+                (models.Document.metadata_suggested['title'].as_string().ilike(q_lower)) |
+                (models.Document.metadata_confirmed['composer'].as_string().ilike(q_lower)) |
+                (models.Document.metadata_suggested['composer'].as_string().ilike(q_lower))
+            )
+        return q.order_by(None).with_entities(models.Document.id).subquery()
+
+    facet_doc_ids = get_collection_base_query()
+
+    # A. Contar Compositores sobre la base de la colección
+    composer_expr = func.coalesce(
+        models.Document.metadata_confirmed['composer'].as_string(), 
+        models.Document.metadata_suggested['composer'].as_string()
+    )
+    
+    composer_counts = db.query(
+        composer_expr,
+        func.count(models.Document.id)
+    ).filter(
+        models.Document.id.in_(facet_doc_ids),
+        or_(models.Document.metadata_confirmed['composer'] != None, 
+            models.Document.metadata_suggested['composer'] != None)
+    ).group_by(composer_expr).all()
+    
+    # B. Contar Etiquetas sobre la base de la colección
+    tag_subquery_facets = db.query(
+        tag_extract_subquery.c.doc_id,
+        tag_extract_subquery.c.tag
+    ).filter(tag_extract_subquery.c.doc_id.in_(facet_doc_ids)).subquery()
+
+    tag_counts_raw = db.query(
+        tag_subquery_facets.c.tag,
+        func.count(tag_subquery_facets.c.doc_id)
+    ).group_by(tag_subquery_facets.c.tag).all()
+    
+    facets = {
+        "composerCounts": {c[0]: c[1] for c in composer_counts if c[0]},
+        "tagCounts": {t[0]: t[1] for t in tag_counts_raw if t[0]}
+    }
 
     # 6. Paginación en servidor con offset y limit
     page = payload.page if payload.page and payload.page > 0 else 1
@@ -305,7 +373,8 @@ def filter_documents(
 
     return {
         "data": formatted_results,
-        "total": total_results
+        "total": total_results,
+        "facets": facets
     }
 
 
