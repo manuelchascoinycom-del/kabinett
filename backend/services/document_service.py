@@ -69,21 +69,23 @@ def register_external_document(
 
     return new_doc
 
+def get_collection_ids_recursive(db: Session, collection_id: uuid.UUID) -> list[uuid.UUID]:
+    collection_ids = [collection_id]
+    def get_subcollection_ids(parent_id: uuid.UUID):
+        subs = db.query(models.Collection.id).filter(models.Collection.parent_id == parent_id).all()
+        for sub in subs:
+            collection_ids.append(sub.id)
+            get_subcollection_ids(sub.id)
+    get_subcollection_ids(collection_id)
+    return collection_ids
+
 def get_unprocessed_document_ids(db: Session, collection_id: uuid.UUID) -> list[uuid.UUID]:
     """
     Obtiene todos los IDs de documentos en una colección (incluyendo subcolecciones)
     que no tienen ni `metadata_confirmed` ni `metadata_suggested`.
     """
     # 1. Obtener todos los IDs de colección (recursivo)
-    collection_ids = [collection_id]
-    
-    def get_subcollection_ids(parent_id: uuid.UUID):
-        subs = db.query(models.Collection.id).filter(models.Collection.parent_id == parent_id).all()
-        for sub in subs:
-            collection_ids.append(sub.id)
-            get_subcollection_ids(sub.id)
-    
-    get_subcollection_ids(collection_id)
+    collection_ids = get_collection_ids_recursive(db, collection_id)
     
     # 2. Buscar documentos en esas colecciones
     # Filtro con and_: Ambos campos deben ser nulos para considerarse totalmente sin procesar

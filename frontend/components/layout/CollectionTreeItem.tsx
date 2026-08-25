@@ -26,7 +26,7 @@ const calculateUniqueTotalDocuments = (collection: Collection): number => {
       col.document_ids.forEach((id) => uniqueIds.add(id));
     }
     
-    fallbackSum += col.document_count ?? 0;
+    fallbackSum += col.document_count ?? 0; // O document_count según corresponda
     
     if (col.children && col.children.length > 0) {
       col.children.forEach(traverse);
@@ -68,15 +68,17 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
   const [isAiConfirmOpen, setIsAiConfirmOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
+  
+  // Ajustado para almacenar el total global y los listos de la jerarquía
   const [batchStatus, setBatchStatus] = useState<{ total: number; ready: number; is_processing: boolean } | null>(null);
+  
   const [isAiSuccessOpen, setIsAiSuccessOpen] = useState(false);
   const [queuedCount, setQueuedCount] = useState(0);
 
   const [showCompletionToast, setShowCompletionToast] = useState(false);
   
-  // Ref para rastrear si el proceso realmente llegó a estar activo en el servidor
-  const hasStartedRef = useRef(false);
-
+  const hasCompletedRef = useRef(false);
+  
   const isSelected = selectedCollectionId === collection.id;
 
   const onUpdateRef = useRef(onUpdate);
@@ -93,10 +95,7 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
     return calculateUniqueTotalDocuments(collection);
   }, [collection]);
 
-  // Documentos directos de ESTA colección para la barra de progreso
-  const directDocumentsCount = collection.document_ids?.length ?? collection.document_count ?? 0;
-
- // Polling ultra-simplificado y a prueba de bucles infinitos
+  // Polling para consultar el estado del lote en el backend
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let pollCount = 0;
@@ -107,45 +106,33 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
           pollCount++;
           const rawStatus: any = await collectionService.getBatchStatus(collection.id);
           
-          const total = rawStatus.total ?? directDocumentsCount;
+          // Capturamos el total recursivo que ahora devuelve el backend corregido
+          const total = rawStatus.total ?? totalTreeDocuments;
           const ready = rawStatus.ready ?? 0;
           const errorCount = rawStatus.error_count ?? rawStatus.errors ?? 0;
           const processed = rawStatus.processed ?? (ready + errorCount);
           const isProcessingFlag = Boolean(rawStatus.is_processing);
 
-          console.log('--- DEBUG PROGRESS BAR ---', {
-  isPolling,
-  batchStatus,
-  directDocumentsCount,
-  currentTotal: batchStatus?.total ?? directDocumentsCount,
-  currentReady: batchStatus?.ready ?? 0,
-  shouldRenderBar: isPolling
-});
-
           setBatchStatus({ total, ready: processed, is_processing: isProcessingFlag });
           
-          // CONDICIÓN DE SALIDA INFALIBLE:
-          // 1. El backend indica que ya no está procesando (y dejamos pasar al menos 1 segundo/poll para evitar falsos positivos iniciales).
-          // 2. O los documentos procesados (éxitos + errores) igualan o superan al total.
           const isFinished = (!isProcessingFlag && pollCount > 1) || (total > 0 && processed >= total);
 
           if (isFinished) {
-            // 1. Apagamos el polling inmediatamente para romper el bucle
+            if (hasCompletedRef.current) return;
+            hasCompletedRef.current = true;
+            
             setIsPolling(false);
             
-            // 2. Refrescamos el árbol de colecciones general
             if (onUpdateRef.current) {
               onUpdateRef.current();
             }
             
-            // 3. Refrescamos los documentos de la vista principal
             if (onBatchFinishedRef.current) {
               onBatchFinishedRef.current(collection.id);
             } else if (isSelected) {
               onSelectRef.current(collection.id);
             }
             
-            // 4. Mostramos el Toast de éxito
             setShowCompletionToast(true);
             setTimeout(() => setShowCompletionToast(false), 4500);
           }
@@ -154,13 +141,12 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
         }
       };
 
-      // Ejecutar inmediatamente al activar y luego cada 2 segundos
       fetchStatus();
       interval = setInterval(fetchStatus, 2000);
     }
     
     return () => clearInterval(interval);
-  }, [isPolling, collection.id, directDocumentsCount, isSelected]);
+  }, [isPolling, collection.id, totalTreeDocuments, isSelected]);
 
   useEffect(() => {
     setEditedName(collection.name);
@@ -193,7 +179,8 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
 
   const hasChildren = collection.children && collection.children.length > 0;
 
-  const currentTotal = batchStatus?.total && batchStatus.total > 0 ? batchStatus.total : directDocumentsCount;
+  // CORRECCIÓN CLAVE: Usamos totalTreeDocuments como respaldo global en lugar de directDocumentsCount
+  const currentTotal = batchStatus?.total && batchStatus.total > 0 ? batchStatus.total : totalTreeDocuments;
   const currentReady = batchStatus?.ready ?? 0;
   const progressPercent = currentTotal > 0 ? Math.min(100, Math.round((currentReady / currentTotal) * 100)) : 0;
 
@@ -330,7 +317,7 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
         </div>
       </div>
 
-      {/* Barra de progreso en tiempo real */}
+      {/* Barra de progreso en tiempo real (mostrando correctamente la jerarquía global) */}
       {isPolling && (
         <div className="w-[calc(100%-1rem)] px-2 py-1.5 mt-1 ml-4 text-[10px] space-y-1 bg-[var(--panel-bg)] rounded border border-emerald-500/30 animate-fadeIn box-border overflow-hidden">
           <div className="flex justify-between items-center text-emerald-500 font-semibold truncate">
@@ -365,6 +352,7 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
         isLoading={isProcessing}
         onCancel={() => setIsAiConfirmOpen(false)}
         onConfirm={async () => {
+          hasCompletedRef.current = false;
           setIsProcessing(true);
           try {
             const response = await collectionService.generateBatchAI(collection.id);
@@ -372,7 +360,6 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
             setIsAiConfirmOpen(false);
             setIsAiSuccessOpen(true);
             
-            // Reiniciamos estados visuales y activamos el bucle de sondeo
             setBatchStatus(null);
             setIsPolling(true);
           } catch (err) {
