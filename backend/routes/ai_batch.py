@@ -11,22 +11,33 @@ from services.document_service import get_unprocessed_document_ids, get_collecti
 from services.extractor import extract_text_from_first_pages
 from services.ai_service import analyze_document_metadata
 import logging
+# Diccionario para gestionar estados de cancelación
+# En una aplicación distribuida, usar Redis.
+cancellation_registry = {}
+
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/collections", tags=["Collections"])
 
-def background_generate_batch_ai(document_ids: List[uuid.UUID]):
+def background_generate_batch_ai(document_ids: List[uuid.UUID], collection_id: uuid.UUID):
     """
     Worker en segundo plano para procesar documentos: OCR -> AI -> DB
     """
-    logger.info(f"Iniciando procesamiento de {len(document_ids)} documentos.")
+    logger.info(f"Iniciando procesamiento de {len(document_ids)} documentos para {collection_id}.")
     
     from database import SessionLocal
     db = SessionLocal()
     
     try:
+        cancellation_registry[collection_id] = False
+        
         for doc_id in document_ids:
+            # Comprobar cancelación
+            if cancellation_registry.get(collection_id, False):
+                logger.info(f"Procesamiento cancelado para la colección {collection_id}.")
+                break
+                
             time.sleep(1)
             doc = db.query(models.Document).filter(models.Document.id == doc_id).first()
             
@@ -52,6 +63,8 @@ def background_generate_batch_ai(document_ids: List[uuid.UUID]):
                 db.rollback()
                 continue
     finally:
+        if collection_id in cancellation_registry:
+            del cancellation_registry[collection_id]
         db.close()
         logger.info("Procesamiento de batch finalizado.")
 
@@ -71,7 +84,7 @@ async def generate_batch_ai(
     if not doc_ids:
         return {"message": "No hay documentos pendientes de procesar en esta colección", "queued": 0}
     
-    background_tasks.add_task(background_generate_batch_ai, doc_ids)
+    background_tasks.add_task(background_generate_batch_ai, doc_ids, collection_id)
 
     return {"message": "Procesamiento de documentos en lote iniciado", "queued": len(doc_ids)}
 
@@ -126,4 +139,17 @@ def get_batch_status(
         "processed": processed,
         "is_processing": is_processing
     }
-   
+
+@router.post("/{collection_id}/batch-cancel", status_code=status.HTTP_200_OK)
+async def cancel_batch_ai(
+    collection_id: uuid.UUID,
+    current_user: dict = Depends(require_roles(["Admin", "Editor"]))
+):
+    """
+    Cancela un proceso batch en curso para la colección especificada.
+    """
+    if collection_id in cancellation_registry:
+        cancellation_registry[collection_id] = True
+        return {"message": "Solicitud de cancelación recibida"}
+    
+    return {"message": "No hay proceso batch activo para cancelar en esta colección"}
