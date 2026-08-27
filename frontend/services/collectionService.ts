@@ -67,6 +67,12 @@ export const collectionService = {
   getBatchStatus: async (collectionId: string): Promise<BatchStatus> => {
     return fetchApi<BatchStatus>(`/collections/${collectionId}/batch-status`);
   },
+  cancelBatchAI: async (collectionId: string): Promise<{ message: string }> => {
+    return fetchApi<{ message: string }>(`/collections/${collectionId}/batch-cancel`, {
+      method: 'POST',
+    });
+  },
+
 
   moveDocument: async (documentId: string, targetCollectionId: string): Promise<void> => {
     return fetchApi<void>(`/collections/${documentId}/move`, {

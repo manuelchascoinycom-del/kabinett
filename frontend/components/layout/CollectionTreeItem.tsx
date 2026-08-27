@@ -324,8 +324,29 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
             <span className="truncate mr-2">
               {APP_TEXTS.sidebar.processing} ({currentReady} / {currentTotal})
             </span>
-            <span className="shrink-0">{progressPercent}%</span>
+            <div className="flex items-center gap-2">
+              <span className="shrink-0">{progressPercent}%</span>
+              <button
+                onClick={async () => {
+                  try {
+                    await collectionService.cancelBatchAI(collection.id);
+                    setIsPolling(false);
+                    setBatchStatus(null);
+                  } catch (err) {
+                    console.error("Error al cancelar:", err);
+                    alert("Error al intentar cancelar el proceso.");
+                  }
+                }}
+                className="p-0.5 hover:bg-red-500/20 rounded-full text-red-400 hover:text-red-300 transition-colors"
+                title="Cancelar proceso"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
+
           <div className="w-full bg-emerald-900/20 h-1 rounded-full overflow-hidden">
             <div 
               className="bg-emerald-500 h-full transition-all duration-500"
