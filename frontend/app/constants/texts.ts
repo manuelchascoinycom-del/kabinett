@@ -225,6 +225,7 @@ export const APP_TEXTS = {
     customFieldsSection: 'Campos Personalizados',
     selectAllCustomField: 'Todos ({fieldName})',
     filterByCustomFieldPlaceholder: 'Filtrar por {fieldName}...',
+    composerSearchPlaceholder: 'Buscar compositor...',
   },
   home: {
     dropRejectedError: 'Formato no soportado en esta versión',

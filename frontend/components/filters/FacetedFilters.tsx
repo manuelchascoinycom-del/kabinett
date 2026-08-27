@@ -43,6 +43,21 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
   refreshTrigger,
 }) => {
   const T = APP_TEXTS.facetedFilters;
+  const [composerSearch, setComposerSearch] = React.useState('');
+  
+  const filteredComposers = React.useMemo(() => {
+    const entries = Object.entries(facets.composerCounts);
+    if (!composerSearch) return entries;
+    
+    const searchLower = composerSearch.toLowerCase();
+    return entries.filter(([composer, count]) => {
+      const isMatch = composer.toLowerCase().includes(searchLower);
+      const isSelected = selectedComposers.includes(composer);
+      return isMatch || isSelected;
+    });
+  }, [facets.composerCounts, composerSearch, selectedComposers]);
+
+
   useEffect(() => {
     // Si la lógica de carga de facetas está en un hook externo,
     // asegúrate de que dicho hook acepte este refreshTrigger.
@@ -67,8 +82,17 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
         {Object.keys(facets.composerCounts).length > 0 && (
           <div>
             <h3 className="text-xs font-semibold text-[color:var(--text-muted)] mb-2">{T.composersSection}</h3>
+            {Object.keys(facets.composerCounts).length > 20 && (
+              <input
+                type="text"
+                placeholder={T.composerSearchPlaceholder}
+                value={composerSearch}
+                onChange={(e) => setComposerSearch(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[color:var(--border-color)] rounded px-2.5 py-1 text-xs text-[color:var(--text-primary)] outline-none focus:border-emerald-500 mb-2"
+              />
+            )}
             <div className="space-y-1">
-              {Object.entries(facets.composerCounts).map(([composer, count]) => {
+              {filteredComposers.map(([composer, count]) => {
                 const isSelected = selectedComposers.includes(composer);
                 return (
                   <button
@@ -85,7 +109,7 @@ export const FacetedFilters: React.FC<FacetedFiltersProps> = ({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => {}}
-                        className="rounded border-[color:var(--border-color)] text-emerald-500 focus:ring-0 bg-[var(--input-bg)]"
+                        className="rounded border-[color:var(--border-color)] text-emerald-500 focus:ring-0 bg-[var(--input-bg)] pointer-events-none"
                       />
                       {composer}
                     </span>
