@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.8] - 2026-08-27
+### Added
+- **Collection Metadata Batch (`ai_batch.py`):** Added a cancellation endpoint and background process handling to safely abort ongoing batch metadata extraction across parent collections and subcollections.
+- **Frontend UI (`CollectionTreeItem`):** Added a cancel action button next to the active AI progress bar, allowing users to halt running batch processes, stop polling loops, and reset UI states cleanly.
+- * **Faceted Filters (`FacetedFilters.tsx`):** Added a conditional search-as-you-type input for composer filters that automatically activates when options exceed 20 items, significantly improving usability for large collections.
+- **Code Quality & Localization:** Externalized hardcoded UI strings related to the composer search filter into `frontend/app/constants/texts.ts`.
+
 ## [1.2.7] - 2026-08-25
 ### Fixes
 - **Collections API (`batch-status`):** Updated recursive query logic to aggregate total document counts, ready states, and errors across parent collections and subcollections.

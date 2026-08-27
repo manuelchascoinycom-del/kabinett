@@ -64,13 +64,24 @@ Esta API utiliza autenticación **Bearer JWT**. Todas las rutas (excepto login) 
 
 ### Management
 - **List/Create**: `GET /collections` (soporta `tree=true`), `POST /collections`
+- **Update**: `PUT /collections/{collection_id}`
 - **Delete**: `DELETE /collections/{collection_id}`
+- **Move Document**: `PUT /collections/{document_id}/move`
+  - *Descripción*: Mueve un documento de su colección actual a una colección de destino.
 
 ### Documents in Collection
 - **Assign**: `POST /collections/{collection_id}/documents`
 - **Get List**: `GET /collections/{collection_id}/documents`
 - **Remove (Desasignar)**: `DELETE /collections/{collection_id}/documents/{document_id}`
   - *Nota*: Elimina la relación lógica. El documento permanece intacto en disco y tabla maestra.
+
+### Batch AI Processing
+- **Generate Batch AI**: `POST /collections/{collection_id}/generate-batch-ai`
+  - *Descripción*: Inicia el procesamiento por lotes de IA de forma asíncrona para la colección y sus subcolecciones.
+- **Get Batch Status**: `GET /collections/{collection_id}/batch-status`
+  - *Descripción*: Obtiene el estado y progreso global del proceso batch actual.
+- **Cancel Batch AI**: `POST /collections/{collection_id}/batch-cancel`
+  - *Descripción*: Cancela el proceso batch en curso para la colección especificada.
 
 ---
 
