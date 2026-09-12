@@ -16,6 +16,7 @@ export interface BatchStatus {
   processed?: number;
   error_count?: number;
   is_processing: boolean;
+  is_batch_active: boolean;
 }
 
 export const collectionService = {

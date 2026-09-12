@@ -109,7 +109,7 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
           ready: rawStatus.processed ?? rawStatus.ready ?? 0,
           is_processing: rawStatus.is_processing,
         });
-        setIsBatchActive(rawStatus.is_processing);
+        setIsBatchActive(rawStatus.is_batch_active);
       } catch (error) {
         console.error('Error loading initial batch status', error);
       }
@@ -126,7 +126,6 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
     hasCompletedRef.current = true;
     setIsBatchActive(false);
 
-    onUpdateRef.current?.();
     if (onBatchFinishedRef.current) {
       onBatchFinishedRef.current(collection.id);
     } else if (isSelected) {
@@ -402,8 +401,17 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
             setIsAiConfirmOpen(false);
             setIsAiSuccessOpen(true);
             
-            setBatchStatus(null);
-            setIsBatchActive(true);
+            if (response.queued > 0) {
+              setBatchStatus({
+                total: response.queued,
+                ready: 0,
+                is_processing: true,
+              });
+              setIsBatchActive(true);
+            } else {
+              setBatchStatus(null);
+              setIsBatchActive(false);
+            }
           } catch (err) {
             alert(APP_TEXTS.sidebar.batchAiError);
           } finally {

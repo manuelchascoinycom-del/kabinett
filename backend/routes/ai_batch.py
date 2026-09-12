@@ -79,7 +79,8 @@ async def get_batch_status(
         "total": total,        # <--- Ahora devolverá 11 (la suma del padre y sus subcolecciones)
         "ready": ready,
         "processed": processed,
-        "is_processing": is_processing
+        "is_processing": is_processing,
+        "is_batch_active": collection_id in cancellation_registry,
     }
 
 @router.post("/{collection_id}/batch-cancel", status_code=status.HTTP_200_OK)
