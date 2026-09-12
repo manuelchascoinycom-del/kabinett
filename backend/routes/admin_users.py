@@ -1,10 +1,10 @@
 import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, or_, select
 
-from database import get_db
+from database import get_session
 import models
 from security import hash_password as get_password_hash
 from dependencies import require_roles
@@ -24,20 +24,20 @@ router = APIRouter(
 
 
 @router.get("", response_model=UserListResponse, status_code=status.HTTP_200_OK)
-def list_users(
+async def list_users(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
     role: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_session)
 ):
     """Lista paginada de usuarios con filtros por búsqueda, rol y estado."""
-    query = db.query(models.User)
+    query = select(models.User)
 
     if search:
         search_fmt = f"%{search.strip()}%"
-        query = query.filter(
+        query = query.where(
             or_(
                 models.User.name.ilike(search_fmt),
                 models.User.email.ilike(search_fmt)
@@ -45,14 +45,16 @@ def list_users(
         )
 
     if role:
-        query = query.filter(models.User.role == role)
+        query = query.where(models.User.role == role)
 
     if is_active is not None:
-        query = query.filter(models.User.is_active == is_active)
+        query = query.where(models.User.is_active == is_active)
 
-    total = query.count()
+    total = await db.scalar(select(func.count()).select_from(query.subquery()))
     offset = (page - 1) * limit
-    users = query.order_by(models.User.created_at.desc()).offset(offset).limit(limit).all()
+    users = list((await db.scalars(
+        query.order_by(models.User.created_at.desc()).offset(offset).limit(limit)
+    )).all())
 
     return {
         "users": users,
@@ -63,9 +65,11 @@ def list_users(
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def create_user(payload: UserCreate, db: Session = Depends(get_db)):
+async def create_user(payload: UserCreate, db: AsyncSession = Depends(get_session)):
     """Crea un nuevo usuario asegurando email único y hash de contraseña."""
-    existing_user = db.query(models.User).filter(models.User.email == payload.email).first()
+    existing_user = await db.scalar(
+        select(models.User).where(models.User.email == payload.email)
+    )
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -81,20 +85,20 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
         is_active=True
     )
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    await db.commit()
+    await db.refresh(new_user)
     return new_user
 
 
 @router.patch("/{user_id}", response_model=UserResponse, status_code=status.HTTP_200_OK)
-def update_user(
+async def update_user(
     user_id: uuid.UUID,
     payload: UserUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin"]))
 ):
     """Actualiza datos, rol o contraseña de un usuario. Evita auto-remover rol de Admin."""
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    user = await db.scalar(select(models.User).where(models.User.id == user_id))
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
@@ -106,7 +110,9 @@ def update_user(
         )
 
     if payload.email and payload.email != user.email:
-        existing = db.query(models.User).filter(models.User.email == payload.email).first()
+        existing = await db.scalar(
+            select(models.User).where(models.User.email == payload.email)
+        )
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -123,20 +129,20 @@ def update_user(
     if payload.password:
         user.hashed_password = get_password_hash(payload.password)
 
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
     return user
 
 
 @router.patch("/{user_id}/status", response_model=UserResponse, status_code=status.HTTP_200_OK)
-def toggle_user_status(
+async def toggle_user_status(
     user_id: uuid.UUID,
     payload: UserStatusUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin"]))
 ):
     """Activa o desactiva la cuenta de un usuario. Evita la auto-desactivación del Admin actual."""
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    user = await db.scalar(select(models.User).where(models.User.id == user_id))
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
@@ -148,6 +154,6 @@ def toggle_user_status(
         )
 
     user.is_active = payload.is_active
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
     return user

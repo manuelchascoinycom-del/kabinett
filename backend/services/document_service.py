@@ -2,18 +2,19 @@ import os
 import logging
 from pathlib import Path
 from typing import Union, Dict, Any, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status, BackgroundTasks
 import models
 from schemas.document import DocumentExternalCreate
 from services.task_tracker import task_tracker
-from sqlalchemy import and_
+from sqlalchemy import and_, select
 import uuid
 
 logger = logging.getLogger(__name__)
 
-def register_external_document(
-    db: Session,
+async def register_external_document(
+    db: AsyncSession,
     payload: DocumentExternalCreate,
     background_tasks: BackgroundTasks = None
 ) -> models.Document:
@@ -35,9 +36,9 @@ def register_external_document(
         )
 
     # 2. Control de duplicados en base de datos
-    existing = db.query(models.Document).filter(
+    existing = await db.scalar(select(models.Document).where(
         models.Document.absolute_path == abs_path
-    ).first()
+    ))
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -59,8 +60,8 @@ def register_external_document(
         relative_path=payload.relative_path
     )
     db.add(new_doc)
-    db.commit()
-    db.refresh(new_doc)
+    await db.commit()
+    await db.refresh(new_doc)
 
     # 5. Si se proporciona background_tasks, procesar texto/metadatos de fondo
     if background_tasks:
@@ -69,37 +70,40 @@ def register_external_document(
 
     return new_doc
 
-def get_collection_ids_recursive(db: Session, collection_id: uuid.UUID) -> list[uuid.UUID]:
+async def get_collection_ids_recursive(db: AsyncSession, collection_id: uuid.UUID) -> list[uuid.UUID]:
     collection_ids = [collection_id]
-    def get_subcollection_ids(parent_id: uuid.UUID):
-        subs = db.query(models.Collection.id).filter(models.Collection.parent_id == parent_id).all()
-        for sub in subs:
+    async def get_subcollection_ids(parent_id: uuid.UUID):
+        result = await db.scalars(
+            select(models.Collection.id).where(models.Collection.parent_id == parent_id)
+        )
+        for sub in result.all():
             collection_ids.append(sub.id)
-            get_subcollection_ids(sub.id)
-    get_subcollection_ids(collection_id)
+            await get_subcollection_ids(sub)
+    await get_subcollection_ids(collection_id)
     return collection_ids
 
-def get_unprocessed_document_ids(db: Session, collection_id: uuid.UUID) -> list[uuid.UUID]:
+async def get_unprocessed_document_ids(db: AsyncSession, collection_id: uuid.UUID) -> list[uuid.UUID]:
     """
     Obtiene todos los IDs de documentos en una colección (incluyendo subcolecciones)
     que no tienen ni `metadata_confirmed` ni `metadata_suggested`.
     """
     # 1. Obtener todos los IDs de colección (recursivo)
-    collection_ids = get_collection_ids_recursive(db, collection_id)
+    collection_ids = await get_collection_ids_recursive(db, collection_id)
     
     # 2. Buscar documentos en esas colecciones
     # Filtro con and_: Ambos campos deben ser nulos para considerarse totalmente sin procesar
-    docs = db.query(models.Document.id).join(
+    statement = select(models.Document.id).join(
         models.document_collections
-    ).filter(
+    ).where(
         models.document_collections.c.collection_id.in_(collection_ids),
         and_(
             models.Document.metadata_confirmed == None,
             models.Document.metadata_suggested == None
         )
-    ).distinct().all()
+    ).distinct()
+    docs = await db.scalars(statement)
     
-    return [d.id for d in docs]
+    return list(docs.all())
 
 
 def scan_directory_dry_run(path: Union[str, Path]) -> Dict[str, Any]:
@@ -200,7 +204,7 @@ def scan_directory_dry_run(path: Union[str, Path]) -> Dict[str, Any]:
     return _scan_node(path_obj)
 
 
-def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, task_id: Optional[str] = None) -> Dict[str, Any]:
+async def process_bulk_ingestion(root_path: str, db: AsyncSession, batch_size: int = 50, task_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Recorre de forma recursiva y segura el directorio raíz `root_path` optimizando I/O
     para evitar bloqueos en unidades virtuales/externas, registrando los PDF encontrados.
@@ -229,7 +233,7 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, ta
     
     collections_cache = {}
     
-    def get_or_create_collection_for_path(folder_path: Path) -> models.Collection:
+    async def get_or_create_collection_for_path(folder_path: Path) -> models.Collection:
         folder_path = folder_path.resolve()
         if folder_path in collections_cache:
             return collections_cache[folder_path]
@@ -238,7 +242,7 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, ta
         if folder_path != root_path_obj and folder_path.parent:
             try:
                 folder_path.parent.relative_to(root_path_obj)
-                parent_collection = get_or_create_collection_for_path(folder_path.parent)
+                parent_collection = await get_or_create_collection_for_path(folder_path.parent)
             except ValueError:
                 pass
             
@@ -247,10 +251,10 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, ta
         if folder_path == root_path_obj:
             collection_name = folder_path.name or "Ingesta Masiva"
             
-        existing_col = db.query(models.Collection).filter(
+        existing_col = await db.scalar(select(models.Collection).where(
             models.Collection.name == collection_name,
             models.Collection.parent_id == parent_id
-        ).first()
+        ))
         
         if existing_col:
             collections_cache[folder_path] = existing_col
@@ -262,14 +266,14 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, ta
             description=f"Colección creada automáticamente para la ruta: {folder_path}"
         )
         db.add(new_col)
-        db.flush()
+        await db.flush()
         collections_cache[folder_path] = new_col
         return new_col
 
     # Recorrido recursivo seguro y tolerante a fallos de I/O en unidades externas
     pending_files = []
     
-    def safe_scan(current_dir: Path):
+    async def safe_scan(current_dir: Path):
         try:
             with os.scandir(current_dir) as entries:
                 for entry in entries:
@@ -277,19 +281,19 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, ta
                         continue
                     item_path = Path(entry.path)
                     if entry.is_dir(follow_symlinks=False):
-                        safe_scan(item_path)
+                        await safe_scan(item_path)
                     elif entry.is_file(follow_symlinks=False) and item_path.suffix.lower() == '.pdf':
                         try:
                             if os.access(item_path, os.R_OK):
                                 parent_dir = item_path.parent
-                                collection = get_or_create_collection_for_path(parent_dir)
+                                collection = await get_or_create_collection_for_path(parent_dir)
                                 pending_files.append((item_path, collection))
                         except Exception:
                             pass
         except Exception as scan_err:
             logger.warning(f"No se pudo leer el directorio {current_dir}: {scan_err}")
 
-    safe_scan(root_path_obj)
+    await safe_scan(root_path_obj)
     total_detected = len(pending_files)
     
     # Actualizar total de ítems en el tracker
@@ -315,14 +319,14 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, ta
         batch = pending_files[i : i + batch_size]
         
         try:
-            with db.begin_nested():
+            async with db.begin_nested():
                 batch_documents = []
                 for pdf_path, collection in batch:
                     abs_path = os.path.normpath(str(pdf_path.resolve()))
                     
-                    existing = db.query(models.Document).filter(
+                    existing = await db.scalar(select(models.Document).where(
                         models.Document.absolute_path == abs_path
-                    ).first()
+                    ))
                     
                     if existing:
                         if collection and collection not in existing.collections:
@@ -353,23 +357,23 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, ta
                     db.add(new_doc)
                     batch_documents.append((pdf_path, new_doc))
                 
-                db.flush()
+                await db.flush()
                 successful_count += len(batch_documents)
                 task_tracker.update_task(task_id, processed_items=successful_count + failed_count)
                 
-            db.commit()
+            await db.commit()
             
         except Exception as batch_error:
-            db.rollback()
+            await db.rollback()
             logger.warning(f"Fallo en lote. Procesando individualmente. Error: {batch_error}")
             
             for pdf_path, collection in batch:
                 try:
-                    with db.begin_nested():
+                    async with db.begin_nested():
                         abs_path = os.path.normpath(str(pdf_path.resolve()))
-                        existing = db.query(models.Document).filter(
+                        existing = await db.scalar(select(models.Document).where(
                             models.Document.absolute_path == abs_path
-                        ).first()
+                        ))
                         
                         if existing:
                             if collection and collection not in existing.collections:
@@ -398,12 +402,12 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, ta
                             new_doc.collections.append(collection)
                             
                         db.add(new_doc)
-                        db.flush()
-                    db.commit()
+                        await db.flush()
+                    await db.commit()
                     successful_count += 1
                     task_tracker.update_task(task_id, processed_items=successful_count + failed_count)
                 except Exception as single_error:
-                    db.rollback()
+                    await db.rollback()
                     failed_count += 1
                     err_msg = f"Error en archivo {pdf_path.name}: {str(single_error)}"
                     logger.error(err_msg)
@@ -423,7 +427,7 @@ def process_bulk_ingestion(root_path: str, db: Session, batch_size: int = 50, ta
     }
 
 
-def sync_directory_service(root_path: str, db: Session) -> dict:
+async def sync_directory_service(root_path: str, db: AsyncSession) -> dict:
     """
     Sincroniza el directorio físico con la base de datos de manera recursiva:
     1. Escanea el root_path físico para obtener todos los archivos PDF actuales.
@@ -471,9 +475,9 @@ def sync_directory_service(root_path: str, db: Session) -> dict:
     safe_scan(root_path_obj)
 
     # 2. Obtener documentos en BD bajo el root_path
-    db_docs = db.query(models.Document).filter(
+    db_docs = list((await db.scalars(select(models.Document).where(
         models.Document.storage_type == models.DocumentStorageType.EXTERNAL
-    ).all()
+    ))).all())
 
     docs_in_dir = []
     for doc in db_docs:
@@ -497,7 +501,7 @@ def sync_directory_service(root_path: str, db: Session) -> dict:
             to_remove.append(doc)
 
     for doc in to_remove:
-        db.delete(doc)
+        await db.delete(doc)
         removed_count += 1
 
     # 4. Añadir nuevos (Archivos físicos que no están en BD)
@@ -510,14 +514,14 @@ def sync_directory_service(root_path: str, db: Session) -> dict:
         collections_cache = {}
 
         # CORRECCIÓN: Comprobar si ya existe una colección registrada para el root_path actual
-        existing_root_col = db.query(models.Collection).filter(
+        existing_root_col = await db.scalar(select(models.Collection).where(
             models.Collection.description == f"Colección creada automáticamente para la ruta: {root_path_obj}"
-        ).first()
+        ))
         
         if existing_root_col:
             collections_cache[root_path_obj] = existing_root_col
 
-        def get_or_create_collection_for_path(folder_path: Path) -> models.Collection:
+        async def get_or_create_collection_for_path(folder_path: Path) -> models.Collection:
             folder_path = folder_path.resolve()
             if folder_path in collections_cache:
                 return collections_cache[folder_path]
@@ -526,7 +530,7 @@ def sync_directory_service(root_path: str, db: Session) -> dict:
             if folder_path != root_path_obj and folder_path.parent:
                 try:
                     folder_path.parent.relative_to(root_path_obj)
-                    parent_collection = get_or_create_collection_for_path(folder_path.parent)
+                    parent_collection = await get_or_create_collection_for_path(folder_path.parent)
                 except ValueError:
                     pass
                 
@@ -535,10 +539,10 @@ def sync_directory_service(root_path: str, db: Session) -> dict:
             if folder_path == root_path_obj:
                 collection_name = folder_path.name or "Sincronizacion Externa"
                 
-            existing_col = db.query(models.Collection).filter(
+            existing_col = await db.scalar(select(models.Collection).where(
                 models.Collection.name == collection_name,
                 models.Collection.parent_id == parent_id
-            ).first()
+            ))
             
             if existing_col:
                 collections_cache[folder_path] = existing_col
@@ -550,7 +554,7 @@ def sync_directory_service(root_path: str, db: Session) -> dict:
                 description=f"Colección creada automáticamente para la ruta: {folder_path}"
             )
             db.add(new_col)
-            db.flush()
+            await db.flush()
             collections_cache[folder_path] = new_col
             return new_col
 
@@ -573,13 +577,13 @@ def sync_directory_service(root_path: str, db: Session) -> dict:
             )
             
             parent_dir = phys_path_obj.parent
-            collection = get_or_create_collection_for_path(parent_dir)
+            collection = await get_or_create_collection_for_path(parent_dir)
             if collection:
                 new_doc.collections.append(collection)
                 
             db.add(new_doc)
             added_count += 1
 
-    db.commit()
+    await db.commit()
 
     return {"added": added_count, "removed": removed_count}

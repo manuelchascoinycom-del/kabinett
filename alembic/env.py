@@ -1,6 +1,7 @@
 import os
 from logging.config import fileConfig
 
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
@@ -17,8 +18,10 @@ if config.config_file_name is not None:
 
 # --- AJUSTE PARA LEER LA URL REAL DE LA BASE DE DATOS ---
 # Opción 1: Si usas una variable de entorno llamada DATABASE_URL
+load_dotenv(os.path.join(os.path.dirname(config.config_file_name or ""), "backend", ".env"))
 database_url = os.getenv("DATABASE_URL")
 if database_url:
+    database_url = database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
     config.set_main_option("sqlalchemy.url", database_url)
 
 # Opción 2 (Alternativa): Si tu app exporta la URL desde un archivo del proyecto, des comenta la siguiente línea:
