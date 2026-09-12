@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from database import get_db
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from database import get_session
 import models
 from schemas.custom_field import CustomFieldCreate, CustomFieldResponse
 from dependencies import require_roles  # <--- Importación actualizada
@@ -8,15 +9,15 @@ from dependencies import require_roles  # <--- Importación actualizada
 router = APIRouter(prefix="/custom-fields", tags=["Custom Fields"])
 
 @router.post("", response_model=CustomFieldResponse, status_code=status.HTTP_201_CREATED)
-def create_custom_field(
+async def create_custom_field(
     payload: CustomFieldCreate, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))  # <--- RBAC
 ):
     # Evitar nombres duplicados
-    existing = db.query(models.CustomFieldDefinition).filter(
+    existing = await db.scalar(select(models.CustomFieldDefinition).where(
         models.CustomFieldDefinition.name.ilike(payload.name)
-    ).first()
+    ))
     if existing:
         raise HTTPException(status_code=400, detail="Ya existe un campo personalizado con este nombre")
 
@@ -26,27 +27,27 @@ def create_custom_field(
         options=payload.options
     )
     db.add(new_field)
-    db.commit()
-    db.refresh(new_field)
+    await db.commit()
+    await db.refresh(new_field)
     return new_field
 
 @router.get("", response_model=list[CustomFieldResponse])
-def list_custom_fields(
-    db: Session = Depends(get_db),
+async def list_custom_fields(
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC
 ):
-    return db.query(models.CustomFieldDefinition).all()
+    return list((await db.scalars(select(models.CustomFieldDefinition))).all())
     
 @router.delete("/{field_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_custom_field(
+async def delete_custom_field(
     field_id: str, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin"]))  # <--- RBAC
 ):
     # 1. Buscar el campo en la BD
-    field = db.query(models.CustomFieldDefinition).filter(
+    field = await db.scalar(select(models.CustomFieldDefinition).where(
         models.CustomFieldDefinition.id == field_id
-    ).first()
+    ))
     
     if not field:
         raise HTTPException(
@@ -55,6 +56,6 @@ def delete_custom_field(
         )
 
     # 2. Eliminar y guardar cambios
-    db.delete(field)
-    db.commit()
+    await db.delete(field)
+    await db.commit()
     return None

@@ -1,11 +1,11 @@
 import time
 import uuid
 from typing import List
-from sqlalchemy import and_
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import BackgroundTasks, Depends, HTTPException, status, APIRouter
 import models
-from database import get_db
+from database import get_session
 from dependencies import require_roles
 from services.document_service import get_unprocessed_document_ids, get_collection_ids_recursive
 from services.extractor import extract_text_from_first_pages
@@ -72,14 +72,14 @@ def background_generate_batch_ai(document_ids: List[uuid.UUID], collection_id: u
 async def generate_batch_ai(
     collection_id: uuid.UUID,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))
 ):
-    collection = db.query(models.Collection).filter(models.Collection.id == collection_id).first()
+    collection = await db.scalar(select(models.Collection).where(models.Collection.id == collection_id))
     if not collection:
         raise HTTPException(status_code=404, detail="Colección no encontrada")
     
-    doc_ids = get_unprocessed_document_ids(db, collection_id)
+    doc_ids = await get_unprocessed_document_ids(db, collection_id)
     
     if not doc_ids:
         return {"message": "No hay documentos pendientes de procesar en esta colección", "queued": 0}
@@ -89,44 +89,43 @@ async def generate_batch_ai(
     return {"message": "Procesamiento de documentos en lote iniciado", "queued": len(doc_ids)}
 
 @router.get("/{collection_id}/batch-status")
-def get_batch_status(
+async def get_batch_status(
     collection_id: uuid.UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
 
-    db.expire_all()
-    db.rollback()
+    await db.rollback()
 
-    collection = db.query(models.Collection).filter(models.Collection.id == collection_id).first()
+    collection = await db.scalar(select(models.Collection).where(models.Collection.id == collection_id))
     if not collection:
         raise HTTPException(status_code=404, detail="Colección no encontrada")
     
     # 1. Obtener lista recursiva de colecciones (Padre + Hijas)
-    collection_ids = get_collection_ids_recursive(db, collection_id)
+    collection_ids = await get_collection_ids_recursive(db, collection_id)
     
     # 2. TOTAL RECURSIVO (Aquí estaba el fallo: debe usar .in_(collection_ids) en vez de == collection_id)
-    total = db.query(models.Document.id).join(
+    total = await db.scalar(select(func.count(models.Document.id.distinct())).join(
         models.document_collections
-    ).filter(
+    ).where(
         models.document_collections.c.collection_id.in_(collection_ids)
-    ).distinct().count()
+    ))
     
     # 3. Documentos procesados por IA (ready)
-    ready = db.query(models.Document.id).join(
+    ready = await db.scalar(select(func.count(models.Document.id.distinct())).join(
         models.document_collections
-    ).filter(
+    ).where(
         models.document_collections.c.collection_id.in_(collection_ids),
         models.Document.metadata_suggested.isnot(None)
-    ).distinct().count()
+    ))
     
     # 4. Documentos con error
-    error_count = db.query(models.Document.id).join(
+    error_count = await db.scalar(select(func.count(models.Document.id.distinct())).join(
         models.document_collections
-    ).filter(
+    ).where(
         models.document_collections.c.collection_id.in_(collection_ids),
         models.Document.status == models.DocumentStatus.ERROR
-    ).distinct().count()
+    ))
 
     processed = ready + error_count
     

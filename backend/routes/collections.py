@@ -3,9 +3,11 @@ from pathlib import Path
 
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from database import get_db
+from sqlalchemy.orm import selectinload
+from database import get_db, get_session
 import models
 from schemas.collection_update import CollectionUpdate
 
@@ -23,14 +25,16 @@ from dependencies import require_roles  # <--- Importación actualizada
 router = APIRouter(prefix="/collections", tags=["Collections"])
 
 @router.post("", response_model=CollectionResponse, status_code=status.HTTP_201_CREATED)
-def create_collection(
+async def create_collection(
     payload: CollectionCreate, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))  # <--- RBAC
 ):
     # Validar si se proporciona un parent_id y comprobar si existe en la base de datos
     if payload.parent_id:
-        parent_collection = db.query(models.Collection).filter(models.Collection.id == payload.parent_id).first()
+        parent_collection = await db.scalar(
+            select(models.Collection).where(models.Collection.id == payload.parent_id)
+        )
         if not parent_collection:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -43,8 +47,8 @@ def create_collection(
         parent_id=payload.parent_id
     )
     db.add(new_collection)
-    db.commit()
-    db.refresh(new_collection)
+    await db.commit()
+    await db.refresh(new_collection)
     
     return CollectionResponse(
         id=new_collection.id,
@@ -56,13 +60,13 @@ def create_collection(
     )
 
 @router.put("/{collection_id}", response_model=CollectionResponse)
-def update_collection(
+async def update_collection(
     collection_id: uuid.UUID,
     payload: CollectionUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))
 ):
-    collection = db.query(models.Collection).filter(models.Collection.id == collection_id).first()
+    collection = await db.scalar(select(models.Collection).where(models.Collection.id == collection_id))
     if not collection:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colección no encontrada")
 
@@ -111,11 +115,14 @@ def update_collection(
 
     
     collection.name = payload.name
-    db.commit()
-    db.refresh(collection)
+    await db.commit()
+    await db.refresh(collection)
     
-    doc_count = db.query(func.count(models.document_collections.c.document_id))\
-        .filter(models.document_collections.c.collection_id == collection.id).scalar()
+    doc_count = await db.scalar(
+        select(func.count(models.document_collections.c.document_id)).where(
+            models.document_collections.c.collection_id == collection.id
+        )
+    )
 
     return CollectionResponse(
         id=collection.id,
@@ -129,15 +136,16 @@ def update_collection(
 
 
 @router.get("", response_model=list[CollectionNode] | list[CollectionResponse])
-def list_collections(
-    db: Session = Depends(get_db),
+async def list_collections(
+    db: AsyncSession = Depends(get_session),
     tree: bool = False,  # Nuevo parámetro para solicitar estructura de árbol
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC
 ):
-    collections = db.query(
+    result = await db.execute(select(
         models.Collection,
         func.count(models.document_collections.c.document_id).label("doc_count")
-    ).outerjoin(models.document_collections).group_by(models.Collection.id).all()
+    ).outerjoin(models.document_collections).group_by(models.Collection.id))
+    collections = result.all()
 
     if not tree:
         result = []
@@ -175,57 +183,57 @@ def list_collections(
 
 
 @router.post("/{collection_id}/documents", status_code=status.HTTP_200_OK)
-def assign_document_to_collection(
+async def assign_document_to_collection(
     collection_id: uuid.UUID, 
     payload: AssignDocumentSchema, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))  # <--- RBAC
 ):
-    collection = db.query(models.Collection).filter(models.Collection.id == collection_id).first()
+    collection = await db.scalar(select(models.Collection).options(selectinload(models.Collection.documents)).where(models.Collection.id == collection_id))
     if not collection:
         raise HTTPException(status_code=404, detail="Colección no encontrada")
 
-    document = db.query(models.Document).filter(models.Document.id == payload.document_id).first()
+    document = await db.scalar(select(models.Document).where(models.Document.id == payload.document_id))
     if not document:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     if document not in collection.documents:
         collection.documents.append(document)
-        db.commit()
+        await db.commit()
 
     return {"message": "Documento asignado a la colección correctamente"}
 
 @router.delete("/{collection_id}/documents/{document_id}", status_code=status.HTTP_200_OK)
-def remove_document_from_collection(
+async def remove_document_from_collection(
     collection_id: uuid.UUID, 
     document_id: uuid.UUID, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin"]))  # <--- RBAC
 ):
     """
     CRITERIO DE DESASIGNACIÓN: Elimina la relación lógica en document_collections.
     El documento permanece intacto en la tabla 'documents' y en el disco físico.
     """
-    collection = db.query(models.Collection).filter(models.Collection.id == collection_id).first()
+    collection = await db.scalar(select(models.Collection).options(selectinload(models.Collection.documents)).where(models.Collection.id == collection_id))
     if not collection:
         raise HTTPException(status_code=404, detail="Colección no encontrada")
 
-    document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    document = await db.scalar(select(models.Document).where(models.Document.id == document_id))
     if not document:
 
                 raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     if document in collection.documents:
         collection.documents.remove(document)
-        db.commit()
+        await db.commit()
 
     return {"message": "Documento eliminado de la colección (permanece en la biblioteca raíz)"}
 
 @router.put("/{document_id}/move", status_code=status.HTTP_200_OK)
-def move_document(
+async def move_document(
     document_id: uuid.UUID,
     payload: MoveDocumentSchema,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))
 ):
     """
@@ -233,11 +241,11 @@ def move_document(
     Si ambas tienen ruta física, mueve el archivo en disco.
     """
     # 1. Obtener documento y colección de destino
-    doc = db.query(models.Document).filter(models.Document.id == document_id).first()
+    doc = await db.scalar(select(models.Document).options(selectinload(models.Document.collections)).where(models.Document.id == document_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
-    target_coll = db.query(models.Collection).filter(models.Collection.id == payload.target_collection_id).first()
+    target_coll = await db.scalar(select(models.Collection).where(models.Collection.id == payload.target_collection_id))
     if not target_coll:
         raise HTTPException(status_code=404, detail="Colección de destino no encontrada")
 
@@ -277,20 +285,20 @@ def move_document(
     try:
         doc.collections.remove(source_coll)
         doc.collections.append(target_coll)
-        db.commit()
+        await db.commit()
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al actualizar la base de datos: {str(e)}")
 
     return {"message": "Documento movido exitosamente"}
 
 @router.get("/{collection_id}/documents")
-def get_documents_by_collection(
+async def get_documents_by_collection(
     collection_id: uuid.UUID, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC
 ):
-    collection = db.query(models.Collection).filter(models.Collection.id == collection_id).first()
+    collection = await db.scalar(select(models.Collection).options(selectinload(models.Collection.documents)).where(models.Collection.id == collection_id))
     if not collection:
         raise HTTPException(status_code=404, detail="Colección no encontrada")
 
@@ -306,14 +314,14 @@ def get_documents_by_collection(
     ]
     
 @router.delete("/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_collection(
+async def delete_collection(
     collection_id: uuid.UUID,  # CORRECCIÓN: Cambiado de str a uuid.UUID para evitar errores con Supabase/Postgres
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin"]))  # <--- RBAC
 ):
-    collection = db.query(models.Collection).filter(
+    collection = await db.scalar(select(models.Collection).where(
         models.Collection.id == collection_id
-    ).first()
+    ))
     
     if not collection:
         raise HTTPException(
@@ -322,6 +330,6 @@ def delete_collection(
         )
 
     # Elimina la colección de la base de datos
-    db.delete(collection)
-    db.commit()
+    await db.delete(collection)
+    await db.commit()
     return None
