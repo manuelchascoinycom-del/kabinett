@@ -1,8 +1,9 @@
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from contextlib import asynccontextmanager
 from database import engine
 import models
 
@@ -13,11 +14,18 @@ from dependencies import security_scheme, get_current_user
 
 load_dotenv()
 
-models.Base.metadata.create_all(bind=engine)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as connection:
+        await connection.run_sync(models.Base.metadata.create_all)
+    yield
+    await engine.dispose()
 
 app = FastAPI(
     title="Kabinett API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:4200"]

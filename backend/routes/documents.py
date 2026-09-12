@@ -4,9 +4,10 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, File, HTTPException, UploadFile, Depends, BackgroundTasks, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from utils.pdf_utils import force_normalize_pdf
-from database import get_db, SessionLocal
+from database import get_db, get_session, SessionLocal
 import models
 from schemas.document import ConfirmMetadataSchema, DocumentExternalCreate, DocumentResponse, ScanRequest, IngestStatusResponse, SyncRequest
 from services.document_service import register_external_document, scan_directory_dry_run, process_bulk_ingestion, sync_directory_service
@@ -187,6 +188,16 @@ def list_documents(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
+    return _list_documents_sync(page, limit, sort_by, order, db)
+
+
+def _list_documents_sync(
+    page: int,
+    limit: int,
+    sort_by: Optional[str],
+    order: Optional[str],
+    db: Session,
+):
     offset = (page - 1) * limit
     
     query = db.query(models.Document)
@@ -221,9 +232,16 @@ def list_documents(
 
 @router.post("/filter", status_code=status.HTTP_200_OK)
 def filter_documents(
-    payload: FilterPayloadSchema, 
+    payload: FilterPayloadSchema,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
+):
+    return _filter_documents_sync(payload, db)
+
+
+def _filter_documents_sync(
+    payload: FilterPayloadSchema, 
+    db: Session,
 ):
     from sqlalchemy import func, or_, and_
 
