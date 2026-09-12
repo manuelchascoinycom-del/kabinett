@@ -8,6 +8,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { APP_TEXTS } from '@/app/constants/texts';
 import { HasRole } from '@/components/auth/HasRole';
 import { Collection as BaseCollection, collectionService } from '@/services/collectionService';
+import { BatchWebSocketEvent, useBatchWebSocket } from '@/hooks/useBatchWebSocket';
 
 export interface Collection extends BaseCollection {
   document_ids?: string[];
@@ -67,7 +68,7 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isAiConfirmOpen, setIsAiConfirmOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isPolling, setIsPolling] = useState(false);
+  const [isBatchActive, setIsBatchActive] = useState(false);
   
   // Ajustado para almacenar el total global y los listos de la jerarquía
   const [batchStatus, setBatchStatus] = useState<{ total: number; ready: number; is_processing: boolean } | null>(null);
@@ -95,58 +96,78 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
     return calculateUniqueTotalDocuments(collection);
   }, [collection]);
 
-  // Polling para consultar el estado del lote en el backend
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    let pollCount = 0;
-    
-    if (isPolling) {
-      const fetchStatus = async () => {
-        try {
-          pollCount++;
-          const rawStatus: any = await collectionService.getBatchStatus(collection.id);
-          
-          // Capturamos el total recursivo que ahora devuelve el backend corregido
-          const total = rawStatus.total ?? totalTreeDocuments;
-          const ready = rawStatus.ready ?? 0;
-          const errorCount = rawStatus.error_count ?? rawStatus.errors ?? 0;
-          const processed = rawStatus.processed ?? (ready + errorCount);
-          const isProcessingFlag = Boolean(rawStatus.is_processing);
+    let disposed = false;
 
-          setBatchStatus({ total, ready: processed, is_processing: isProcessingFlag });
-          
-          const isFinished = (!isProcessingFlag && pollCount > 1) || (total > 0 && processed >= total);
+    const loadInitialStatus = async () => {
+      try {
+        const rawStatus = await collectionService.getBatchStatus(collection.id);
+        if (disposed) return;
 
-          if (isFinished) {
-            if (hasCompletedRef.current) return;
-            hasCompletedRef.current = true;
-            
-            setIsPolling(false);
-            
-            if (onUpdateRef.current) {
-              onUpdateRef.current();
-            }
-            
-            if (onBatchFinishedRef.current) {
-              onBatchFinishedRef.current(collection.id);
-            } else if (isSelected) {
-              onSelectRef.current(collection.id);
-            }
-            
-            setShowCompletionToast(true);
-            setTimeout(() => setShowCompletionToast(false), 4500);
-          }
-        } catch (err) {
-          console.error("Error polling batch status", err);
-        }
-      };
+        setBatchStatus({
+          total: rawStatus.total ?? totalTreeDocuments,
+          ready: rawStatus.processed ?? rawStatus.ready ?? 0,
+          is_processing: rawStatus.is_processing,
+        });
+        setIsBatchActive(rawStatus.is_processing);
+      } catch (error) {
+        console.error('Error loading initial batch status', error);
+      }
+    };
 
-      fetchStatus();
-      interval = setInterval(fetchStatus, 2000);
+    loadInitialStatus();
+    return () => {
+      disposed = true;
+    };
+  }, [collection.id, totalTreeDocuments]);
+
+  const finishBatch = () => {
+    if (hasCompletedRef.current) return;
+    hasCompletedRef.current = true;
+    setIsBatchActive(false);
+
+    onUpdateRef.current?.();
+    if (onBatchFinishedRef.current) {
+      onBatchFinishedRef.current(collection.id);
+    } else if (isSelected) {
+      onSelectRef.current(collection.id);
     }
-    
-    return () => clearInterval(interval);
-  }, [isPolling, collection.id, totalTreeDocuments, isSelected]);
+
+    setShowCompletionToast(true);
+    window.setTimeout(() => setShowCompletionToast(false), 4500);
+  };
+
+  const handleBatchEvent = (event: BatchWebSocketEvent) => {
+    if (event.event === 'batch_started') {
+      hasCompletedRef.current = false;
+      setBatchStatus({
+        total: event.total ?? totalTreeDocuments,
+        ready: event.processed ?? 0,
+        is_processing: true,
+      });
+      return;
+    }
+
+    if (event.event === 'receive_progress') {
+      setBatchStatus((previous) => ({
+        total: event.total ?? previous?.total ?? totalTreeDocuments,
+        ready: event.processed ?? previous?.ready ?? 0,
+        is_processing: true,
+      }));
+      return;
+    }
+
+    if (event.event === 'batch_completed' || event.event === 'batch_cancelled') {
+      setBatchStatus((previous) => ({
+        total: event.total ?? previous?.total ?? totalTreeDocuments,
+        ready: event.processed ?? previous?.ready ?? 0,
+        is_processing: false,
+      }));
+      finishBatch();
+    }
+  };
+
+  useBatchWebSocket(collection.id, isBatchActive, handleBatchEvent);
 
   useEffect(() => {
     setEditedName(collection.name);
@@ -318,7 +339,7 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
       </div>
 
       {/* Barra de progreso en tiempo real (mostrando correctamente la jerarquía global) */}
-      {isPolling && (
+      {isBatchActive && (
         <div className="w-[calc(100%-1rem)] px-2 py-1.5 mt-1 ml-4 text-[10px] space-y-1 bg-[var(--panel-bg)] rounded border border-emerald-500/30 animate-fadeIn box-border overflow-hidden">
           <div className="flex justify-between items-center text-emerald-500 font-semibold truncate">
             <span className="truncate mr-2">
@@ -330,7 +351,7 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
                 onClick={async () => {
                   try {
                     await collectionService.cancelBatchAI(collection.id);
-                    setIsPolling(false);
+                    setIsBatchActive(false);
                     setBatchStatus(null);
                   } catch (err) {
                     console.error("Error al cancelar:", err);
@@ -382,7 +403,7 @@ export const CollectionTreeItem: React.FC<CollectionTreeItemProps> = ({
             setIsAiSuccessOpen(true);
             
             setBatchStatus(null);
-            setIsPolling(true);
+            setIsBatchActive(true);
           } catch (err) {
             alert(APP_TEXTS.sidebar.batchAiError);
           } finally {

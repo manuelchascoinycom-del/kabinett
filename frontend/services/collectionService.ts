@@ -13,6 +13,8 @@ export interface Collection {
 export interface BatchStatus {
   total: number;
   ready: number;
+  processed?: number;
+  error_count?: number;
   is_processing: boolean;
 }
 
