@@ -1,9 +1,10 @@
 # routes/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import get_db
+from database import get_session
 import models
 from security import create_access_token, verify_password, hash_password as get_password_hash
 from dependencies import get_current_user
@@ -23,12 +24,15 @@ class TokenResponse(BaseModel):
 
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+async def login(payload: LoginRequest, db: AsyncSession = Depends(get_session)):
     """
     Endpoint para autenticación con JSON payload {"username": "...", "password": "..."}.
     Consulta directamente a la base de datos y genera el JWT con id de usuario y rol.
     """
-    user = db.query(models.User).filter(models.User.email == payload.username).first()
+    result = await db.execute(
+        select(models.User).where(models.User.email == payload.username)
+    )
+    user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(
@@ -60,13 +64,16 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserProfileResponse, status_code=status.HTTP_200_OK)
-def get_current_user_profile(
-    db: Session = Depends(get_db),
+async def get_current_user_profile(
+    db: AsyncSession = Depends(get_session),
     current_user_dict: dict = Depends(get_current_user)
 ):
     """Retorna la información del perfil del usuario autenticado."""
     user_id = current_user_dict.get("sub")
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    result = await db.execute(
+        select(models.User).where(models.User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(
@@ -78,14 +85,17 @@ def get_current_user_profile(
 
 
 @router.put("/change-password", status_code=status.HTTP_200_OK)
-def change_password(
+async def change_password(
     payload: ChangePasswordRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user_dict: dict = Depends(get_current_user)
 ):
     """Permite al usuario autenticado cambiar su propia contraseña."""
     user_id = current_user_dict.get("sub")
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    result = await db.execute(
+        select(models.User).where(models.User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(
@@ -102,6 +112,6 @@ def change_password(
 
     # 2. Asignar nuevo hash
     user.hashed_password = get_password_hash(payload.new_password)
-    db.commit()
+    await db.commit()
 
     return {"detail": "Contraseña actualizada exitosamente"}

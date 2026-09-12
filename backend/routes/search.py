@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from database import get_db
+from database import get_session
 from dependencies import require_roles  # <--- Importación actualizada
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
 @router.get("", status_code=status.HTTP_200_OK)
-def global_search(
+async def global_search(
     q: str = Query(..., min_length=3, description="Término de búsqueda (mínimo 3 caracteres)"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))  # <--- RBAC
 ):
     """
@@ -49,7 +49,7 @@ def global_search(
         LIMIT 50;
     """)
 
-    results = db.execute(sql_query, {"query": clean_query}).fetchall()
+    results = (await db.execute(sql_query, {"query": clean_query})).fetchall()
 
     return [
         {

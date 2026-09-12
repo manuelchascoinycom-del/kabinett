@@ -4,9 +4,12 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, File, HTTPException, UploadFile, Depends, BackgroundTasks, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.orm import Session
 from utils.pdf_utils import force_normalize_pdf
-from database import get_db, SessionLocal
+from database import async_session_factory, get_db, get_session, SessionLocal
 import models
 from schemas.document import ConfirmMetadataSchema, DocumentExternalCreate, DocumentResponse, ScanRequest, IngestStatusResponse, SyncRequest
 from services.document_service import register_external_document, scan_directory_dry_run, process_bulk_ingestion, sync_directory_service
@@ -92,7 +95,7 @@ def process_pdf_in_background(document_id: str, file_path: str):
 async def upload_pdf(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))
 ):
     if not file.filename.lower().endswith(".pdf"):
@@ -113,8 +116,8 @@ async def upload_pdf(
             status=models.DocumentStatus.PROCESSING
         )
         db.add(new_document)
-        db.commit()
-        db.refresh(new_document)
+        await db.commit()
+        await db.refresh(new_document)
 
         background_tasks.add_task(process_pdf_in_background, str(new_document.id), saved_file_path)
 
@@ -125,21 +128,21 @@ async def upload_pdf(
             "message": "Archivo recibido. Procesando..."
         }
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/index-external", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
-def index_external_document(
+async def index_external_document(
     payload: DocumentExternalCreate,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))
 ):
     """
     Indexa un documento PDF externo de manera 'in-place' (sin copiar el archivo).
     """
-    new_doc = register_external_document(
+    new_doc = await register_external_document(
         db=db,
         payload=payload,
         background_tasks=background_tasks
@@ -179,17 +182,17 @@ def scan_dry_run_endpoint(
 
 
 @router.get("", status_code=status.HTTP_200_OK)
-def list_documents(
+async def list_documents(
     page: int = 1,
     limit: int = 20,
     sort_by: Optional[str] = "created_at",
     order: Optional[str] = "desc",
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
     offset = (page - 1) * limit
     
-    query = db.query(models.Document)
+    query = select(models.Document)
     # Ordenamiento dinámico
     sort_column = getattr(models.Document, sort_by, None)
     if sort_column is not None:
@@ -198,8 +201,8 @@ def list_documents(
         else:
             query = query.order_by(sort_column.asc())
 
-    total_docs = query.count()
-    docs = query.offset(offset).limit(limit).all()
+    total_docs = await db.scalar(select(func.count()).select_from(query.subquery()))
+    docs = list((await db.scalars(query.offset(offset).limit(limit))).all())
     
     items = [
         {
@@ -221,9 +224,16 @@ def list_documents(
 
 @router.post("/filter", status_code=status.HTTP_200_OK)
 def filter_documents(
-    payload: FilterPayloadSchema, 
+    payload: FilterPayloadSchema,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
+):
+    return _filter_documents_sync(payload, db)
+
+
+def _filter_documents_sync(
+    payload: FilterPayloadSchema, 
+    db: Session,
 ):
     from sqlalchemy import func, or_, and_
 
@@ -379,12 +389,12 @@ def filter_documents(
 
 
 @router.get("/{document_id}/status", status_code=status.HTTP_200_OK)
-def get_document_status(
+async def get_document_status(
     document_id: str, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
-    doc = db.query(models.Document).filter(models.Document.id == document_id).first()
+    doc = await db.scalar(select(models.Document).where(models.Document.id == document_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     
@@ -400,13 +410,13 @@ def get_document_status(
 
 
 @router.post("/{document_id}/confirm-metadata", status_code=status.HTTP_200_OK)
-def confirm_metadata(
+async def confirm_metadata(
     document_id: str, 
     payload: ConfirmMetadataSchema, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))
 ):
-    doc = db.query(models.Document).filter(models.Document.id == document_id).first()
+    doc = await db.scalar(select(models.Document).options(selectinload(models.Document.tags)).where(models.Document.id == document_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -423,17 +433,17 @@ def confirm_metadata(
         if not clean_name:
             continue
 
-        tag = db.query(models.Tag).filter(models.Tag.name.ilike(clean_name)).first()
+        tag = await db.scalar(select(models.Tag).where(models.Tag.name.ilike(clean_name)))
         if not tag:
             tag = models.Tag(name=clean_name)
             db.add(tag)
-            db.flush()
+            await db.flush()
 
         if tag not in doc.tags:
             doc.tags.append(tag)
 
-    db.commit()
-    db.refresh(doc)
+    await db.commit()
+    await db.refresh(doc)
 
     return {
         "id": str(doc.id),
@@ -446,12 +456,12 @@ def confirm_metadata(
 
 
 @router.get("/{document_id}/file", status_code=status.HTTP_200_OK)
-def get_document_file(
+async def get_document_file(
     document_id: str, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
-    doc = db.query(models.Document).filter(models.Document.id == document_id).first()
+    doc = await db.scalar(select(models.Document).where(models.Document.id == document_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -475,12 +485,12 @@ def get_document_file(
 # ⬇️ ENDPOINT DE DESCARGA
 # En documents.py (Backend)
 @router.get("/{document_id}/download", status_code=status.HTTP_200_OK)
-def download_document_file(
+async def download_document_file(
     document_id: str, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor", "Viewer"]))
 ):
-    doc = db.query(models.Document).filter(models.Document.id == document_id).first()
+    doc = await db.scalar(select(models.Document).where(models.Document.id == document_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -508,10 +518,10 @@ def download_document_file(
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: str, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin"]))
 ):
-    doc = db.query(models.Document).filter(models.Document.id == document_id).first()
+    doc = await db.scalar(select(models.Document).where(models.Document.id == document_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     
@@ -521,8 +531,8 @@ async def delete_document(
         except Exception as e:
             print(f"Error borrando archivo del disco: {e}")
 
-    db.delete(doc)
-    db.commit()
+    await db.delete(doc)
+    await db.commit()
     return None
 
 @router.post("/bulk-ingest", status_code=status.HTTP_200_OK)
@@ -541,21 +551,21 @@ def bulk_ingest_documents(
         task_tracker.create_task(task_id, total_items=0, status="in_progress")
 
         # 2. Función envolvente segura con manejo de excepciones globales y logs
-        def background_wrapper(path: str, tid: str):
-            db = SessionLocal()
-            try:
-                print(f"🚀 [Background] Hilo iniciado para la ruta: {path}")
-                process_bulk_ingestion(root_path=path, db=db, batch_size=50, task_id=tid)
-                print(f"✅ [Background] Hilo completado con éxito para la tarea: {tid}")
-            except Exception as e:
-                print(f"🚨 [Background] EXCEPCIÓN NO CONTROLADA en la tarea {tid}: {str(e)}")
-                task_tracker.update_task(
-                    tid,
-                    status="failed",
-                    errors=[f"Error crítico de ejecución: {str(e)}"]
-                )
-            finally:
-                db.close()
+        async def background_wrapper(path: str, tid: str):
+            async with async_session_factory() as db:
+                try:
+                    print(f"🚀 [Background] Hilo iniciado para la ruta: {path}")
+                    await process_bulk_ingestion(
+                        root_path=path, db=db, batch_size=50, task_id=tid
+                    )
+                    print(f"✅ [Background] Hilo completado con éxito para la tarea: {tid}")
+                except Exception as e:
+                    print(f"🚨 [Background] EXCEPCIÓN NO CONTROLADA en la tarea {tid}: {str(e)}")
+                    task_tracker.update_task(
+                        tid,
+                        status="failed",
+                        errors=[f"Error crítico de ejecución: {str(e)}"]
+                    )
 
         # 3. Lanzar la tarea en segundo plano
         background_tasks.add_task(background_wrapper, payload.path, task_id)
@@ -593,7 +603,7 @@ def get_ingest_status(
 
 
 @router.post("/sync", status_code=status.HTTP_200_OK)
-def sync_directory_endpoint(
+async def sync_directory_endpoint(
     payload: SyncRequest,
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))
 ):
@@ -601,67 +611,57 @@ def sync_directory_endpoint(
     Sincroniza el directorio físico con la base de datos de manera recursiva.
     Acepta folder_path o collection_id.
     """
-    db = SessionLocal()
-    try:
-        path_to_sync = None
-        if payload.folder_path:
+    async with async_session_factory() as db:
+        try:
             path_to_sync = payload.folder_path
-        elif payload.collection_id:
-            try:
-                col_uuid = uuid.UUID(payload.collection_id)
-            except ValueError:
-                raise HTTPException(status_code=400, detail="ID de colección inválido")
-                
-            collection = db.query(models.Collection).filter(models.Collection.id == col_uuid).first()
-            if not collection:
-                raise HTTPException(status_code=404, detail="Colección no encontrada")
-            
-            # Intentar obtener la ruta desde la descripción
-            if collection.description and "Colección creada automáticamente para la ruta: " in collection.description:
-                path_to_sync = collection.description.split("Colección creada automáticamente para la ruta: ")[1].strip()
-            
-            # Si no, buscar un documento externo en esta colección para derivar la ruta
-            if not path_to_sync:
-                doc = db.query(models.Document).join(models.Document.collections).filter(
-                    models.Collection.id == col_uuid,
-                    models.Document.storage_type == models.DocumentStorageType.EXTERNAL,
-                    models.Document.absolute_path.isnot(None)
-                ).first()
-                if doc and doc.absolute_path:
-                    from pathlib import Path
-                    path_to_sync = str(Path(doc.absolute_path).parent)
-                    
-            if not path_to_sync:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="No se pudo determinar la ruta física para la colección especificada"
-                )
-        else:
-            raise HTTPException(status_code=400, detail="Debe proporcionar 'folder_path' o 'collection_id'")
+            if payload.collection_id and not path_to_sync:
+                try:
+                    col_uuid = uuid.UUID(payload.collection_id)
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="ID de colección inválido")
 
-        result = sync_directory_service(path_to_sync, db)
-        return result
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error interno durante la sincronización: {str(e)}"
-        )
-    finally:
-        db.close()
+                collection = await db.scalar(
+                    select(models.Collection).where(models.Collection.id == col_uuid)
+                )
+                if not collection:
+                    raise HTTPException(status_code=404, detail="Colección no encontrada")
+
+                if collection.description and "Colección creada automáticamente para la ruta: " in collection.description:
+                    path_to_sync = collection.description.split(
+                        "Colección creada automáticamente para la ruta: ", 1
+                    )[1].strip()
+
+                if not path_to_sync:
+                    doc = await db.scalar(
+                        select(models.Document).join(models.Document.collections).where(
+                            models.Collection.id == col_uuid,
+                            models.Document.storage_type == models.DocumentStorageType.EXTERNAL,
+                            models.Document.absolute_path.isnot(None),
+                        )
+                    )
+                    if doc and doc.absolute_path:
+                        path_to_sync = str(Path(doc.absolute_path).parent)
+
+            if not path_to_sync:
+                raise HTTPException(status_code=400, detail="Debe proporcionar 'folder_path' o 'collection_id'")
+
+            return await sync_directory_service(path_to_sync, db)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error interno durante la sincronización: {str(e)}")
 
 @router.post("/{item_id}/generate-metadata", response_model=DocumentResponse, status_code=status.HTTP_200_OK)
-def generate_metadata_manually(
+async def generate_metadata_manually(
     item_id: uuid.UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))
 ):
     """
     Genera metadatos manualmente para un documento existente usando IA.
     """
     # 1. Buscar el documento
-    doc = db.query(models.Document).filter(models.Document.id == item_id).first()
+    doc = await db.scalar(select(models.Document).where(models.Document.id == item_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -670,8 +670,8 @@ def generate_metadata_manually(
         # Intentar extraer nuevamente si no tiene texto (opcional: reutilizar lógica de extracción)
         if doc.absolute_path and os.path.exists(doc.absolute_path):
             doc.raw_text = extract_text_from_first_pages(doc.absolute_path, max_pages=3)
-            db.commit()
-            db.refresh(doc)
+            await db.commit()
+            await db.refresh(doc)
             if not doc.raw_text:
                 raise HTTPException(status_code=400, detail="El documento no tiene texto OCR extraíble.")
         else:
@@ -681,8 +681,8 @@ def generate_metadata_manually(
     try:
         suggested_metadata = analyze_document_metadata(doc.raw_text)
         doc.metadata_suggested = suggested_metadata
-        db.commit()
-        db.refresh(doc)
+        await db.commit()
+        await db.refresh(doc)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al generar metadatos: {str(e)}")
 
@@ -691,14 +691,14 @@ def generate_metadata_manually(
 @router.post("/{doc_id}/normalize-manual", status_code=status.HTTP_200_OK)
 async def normalize_document_manually(
     doc_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     current_user: dict = Depends(require_roles(["Admin", "Editor"]))
 ):
     """
     Endpoint bajo demanda para reparar/normalizar un PDF que no se muestra bien en el visor.
     """
     # 1. Buscar el documento en la base de datos
-    document = db.query(models.Document).filter(models.Document.id == doc_id).first()
+    document = await db.scalar(select(models.Document).where(models.Document.id == doc_id))
     if not document:
         raise HTTPException(status_code=404, detail="Documento no encontrado.")
         
@@ -716,8 +716,8 @@ async def normalize_document_manually(
         # 3. Actualizar metadatos en la base de datos (nuevo tamaño y estado a READY)
         document.file_size = os.path.getsize(document.storage_path)
         document.status = models.DocumentStatus.READY
-        db.commit()
-        db.refresh(document)
+        await db.commit()
+        await db.refresh(document)
 
         return {
             "id": str(document.id),
@@ -728,5 +728,5 @@ async def normalize_document_manually(
         }
         
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Error en la normalización: {str(e)}")

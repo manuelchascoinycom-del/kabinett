@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-09-12
+### Changed
+- **Async database engine:** Migrated the application database configuration to SQLAlchemy async with `AsyncSession`, `create_async_engine`, and `postgresql+asyncpg`.
+- **Environment configuration:** Updated `DATABASE_URL` to use the async PostgreSQL driver and configured Alembic to convert it to `postgresql+psycopg2` for synchronous migrations.
+- **PgBouncer compatibility:** Added pool and prepared-statement configuration for Supabase transaction pooling while preserving PostgreSQL container compatibility.
+- **Async API modules:** Migrated authentication, administration, custom fields, tags, search, collections, batch AI processing, document uploads, metadata operations, bulk ingestion, and directory synchronization to async database operations.
+- **Batch AI updates:** Replaced frontend polling with authenticated WebSocket notifications, including automatic reconnection and incremental progress events.
+
+### Added
+- **Async database tests:** Added SQLite/`aiosqlite` tests covering asynchronous queries, connection check-in/check-out, session cleanup, and concurrent sessions.
+- Added `asyncpg` and `aiosqlite` dependencies.
+- **Real-time batch processing:** Added a collection-scoped `ConnectionManager`, authenticated `/ws/batch-processing/{collection_id}` endpoint, and `batch_started`, `receive_progress`, and `batch_completed` events.
+- **Batch processor service:** Extracted asynchronous batch execution into `batch_ai_processor.py` and added event publication for document progress, errors, cancellation, and completion.
+- **Next.js WebSocket client:** Added the typed `useBatchWebSocket` hook with lifecycle management, automatic backoff reconnection, and JWT authentication.
+- **Automated coverage:** Added pytest and pytest-asyncio tests for WebSocket authentication, mocked batch event delivery, and recursive collection traversal.
+
+### Fixed
+- Corrected recursive collection traversal to handle scalar UUID results returned by SQLAlchemy.
+- Distinguished pending documents from an actively running batch with `is_batch_active`, preventing progress bars from appearing on initial page load.
+- Prevented progress bars from activating when a batch queues zero documents.
+- Initialized new batch progress with the actual queued document count instead of the collection-wide total.
+- Removed duplicate collection refreshes and forced selection resets that caused visible UI flicker after batch completion.
+
 ## [1.2.8] - 2026-08-27
 ### Added
 - **Collection Metadata Batch (`ai_batch.py`):** Added a cancellation endpoint and background process handling to safely abort ongoing batch metadata extraction across parent collections and subcollections.

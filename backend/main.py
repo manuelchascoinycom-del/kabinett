@@ -1,8 +1,9 @@
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from contextlib import asynccontextmanager
 from database import engine
 import models
 
@@ -10,14 +11,23 @@ import models
 from routes import documents, collections, custom_fields, tags, search, auth, admin_users
 from routes import documents, collections, custom_fields, tags, search, auth, admin_users, ai_batch
 from dependencies import security_scheme, get_current_user
+from security import decode_access_token
+from services.connection_manager import connection_manager
 
 load_dotenv()
 
-models.Base.metadata.create_all(bind=engine)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as connection:
+        await connection.run_sync(models.Base.metadata.create_all)
+    yield
+    await engine.dispose()
 
 app = FastAPI(
     title="Kabinett API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:4200"]
@@ -43,6 +53,31 @@ app.include_router(tags.router, dependencies=protected_dependency)
 app.include_router(search.router, dependencies=protected_dependency)
 app.include_router(admin_users.router, dependencies=protected_dependency)
 app.include_router(ai_batch.router, dependencies=protected_dependency)
+
+
+@app.websocket("/ws/batch-processing/{collection_id}")
+async def batch_processing_websocket(
+    websocket: WebSocket,
+    collection_id: str,
+    token: str | None = Query(default=None),
+):
+    """Subscribe an authenticated client to real-time batch events."""
+    if not token:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    try:
+        decode_access_token(token)
+    except Exception:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    await connection_manager.connect(websocket, collection_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        connection_manager.disconnect(websocket, collection_id)
 
 
 # 3. OpenAPI Customizado para Swagger UI
