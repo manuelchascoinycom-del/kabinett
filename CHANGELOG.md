@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+### Changed
+- **Async database engine:** Migrated the application database configuration to SQLAlchemy async with `AsyncSession`, `create_async_engine`, and `postgresql+asyncpg`.
+- **Environment configuration:** Updated `DATABASE_URL` to use the async PostgreSQL driver and configured Alembic to convert it to `postgresql+psycopg2` for synchronous migrations.
+- **PgBouncer compatibility:** Added pool and prepared-statement configuration for Supabase transaction pooling while preserving PostgreSQL container compatibility.
+- **Async API modules:** Migrated authentication, administration, custom fields, tags, search, collections, batch AI processing, document uploads, metadata operations, bulk ingestion, and directory synchronization to async database operations.
+
+### Added
+- **Async database tests:** Added SQLite/`aiosqlite` tests covering asynchronous queries, connection check-in/check-out, session cleanup, and concurrent sessions.
+- Added `asyncpg` and `aiosqlite` dependencies.
+
 ## [1.2.8] - 2026-08-27
 ### Added
 - **Collection Metadata Batch (`ai_batch.py`):** Added a cancellation endpoint and background process handling to safely abort ongoing batch metadata extraction across parent collections and subcollections.
