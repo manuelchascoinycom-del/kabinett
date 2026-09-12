@@ -77,7 +77,7 @@ async def get_collection_ids_recursive(db: AsyncSession, collection_id: uuid.UUI
             select(models.Collection.id).where(models.Collection.parent_id == parent_id)
         )
         for sub in result.all():
-            collection_ids.append(sub.id)
+            collection_ids.append(sub)
             await get_subcollection_ids(sub)
     await get_subcollection_ids(collection_id)
     return collection_ids
