@@ -169,10 +169,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 const event = new CustomEvent('refresh-faceted-filters');
                 window.dispatchEvent(event);
                 
-                if (collectionId === selectedCollectionId) {
-                  setSelectedCollectionId(null);
-                  setTimeout(() => setSelectedCollectionId(collectionId), 10);
-                }
               }}
               onUpdate={onRefreshCollections}
               onMoveDocument={onMoveDocument} // <-- Corregido aquí
